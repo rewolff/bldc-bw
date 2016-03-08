@@ -43,6 +43,14 @@
 static volatile fault_data fault_vec[FAULT_VEC_LEN];
 static volatile int fault_vec_write = 0;
 
+
+#define EXTERN
+EXTERN  volatile mc_state state;
+EXTERN int reason; 
+EXTERN  volatile mc_control_mode control_mode;
+EXTERN int debug_top, debug_duty, debug_duty_in, debug_caller;
+
+
 void terminal_process_string(char *str) {
 	enum { kMaxArgs = 64 };
 	int argc = 0;
@@ -264,6 +272,82 @@ void terminal_process_string(char *str) {
 		} else {
 			commands_printf("This command requires one argument.\n");
 		}
+	} else if (strcmp(argv[0], "rew_res") == 0) {
+		if (argc == 2) {
+			float duty = -1.0;
+			int i, cura_tot, curb_tot, curc_tot;
+			sscanf(argv[1], "%f", &duty);
+
+			if (duty >= 1.0) duty = duty / 100;
+
+			systime_t tout = timeout_get_timeout_msec();
+			float tout_c = timeout_get_brake_current();
+			timeout_configure(60000, 0.0);
+
+			commands_printf ("duty= %f", (double)duty);
+
+			mcconf.motor_type = MOTOR_TYPE_DC;
+			mcconf.cc_min_current = 0;
+			//mcconf.l_min_duty = 0.001;
+			mc_interface_set_configuration(&mcconf);
+#define NSAMPLES 2000
+			cura_tot = curb_tot  = curc_tot = 0;
+			for (i=0;i<NSAMPLES;i++) {
+			  cura_tot -= ADC_Value[3];
+			  curb_tot -= ADC_Value[9];
+			  curc_tot -= ADC_Value[4];
+			  chThdSleepMilliseconds (1);
+			  if ((i % 100) == 0)
+			  commands_printf ("%d %d %d %d %d  %f %f",  
+					   ADC_Value[3], ADC_Value[9], ADC_Value[4], reason, debug_caller, (double)mcpwm_get_tot_current_filtered() , (double)mcpwm_get_tot_current());
+			}
+
+			commands_printf ("curtot = %d %d %d\n", cura_tot, curb_tot, curc_tot);
+			commands_printf ("--- control_mode = %d", control_mode);
+			mcpwm_set_duty_noramp (duty);
+			//commands_printf("Resistance: %.6f ohm\n", (double)mcpwm_foc_measure_resistance(current, 2000));
+			chThdSleepMilliseconds (100);
+
+			// Wait for the current to rise and the motor to lock.
+			// cura_tot = curb_tot  = curc_tot = 0;
+			for (i=0;i<NSAMPLES;i++) {
+			  cura_tot += ADC_Value[3];
+			  curb_tot += ADC_Value[9];
+			  curc_tot += ADC_Value[4];
+			  if ((i %100) == 0) {
+			    commands_printf ("%d %d %d %d %d %d %d %d %d %d  %f %f",  
+					     ADC_Value[3], ADC_Value[9], ADC_Value[4], state, reason,  debug_top, debug_duty, debug_duty_in, debug_caller, control_mode, (double)mcpwm_get_tot_current_filtered(), (double)mcpwm_get_tot_current());
+			  } 
+			  chThdSleepMilliseconds(1);
+			}
+			//mcpwm_set_duty (0.0);
+			mcpwm_set_duty_noramp (0.0);
+			chThdSleepMilliseconds (100);
+
+			mcpwm_stop_pwm ();
+			chThdSleepMilliseconds (100);
+
+#if 1
+			for (i=0;i<100;i+=100) {
+			  commands_printf ("state = %d", mcpwm_get_state ());
+			  chThdSleepMilliseconds (100);
+			}
+#endif
+			commands_printf ("curtot = %d %d %d\n", cura_tot, curb_tot, curc_tot);
+
+			commands_printf ("curtot = %f %f\n", 
+					 cura_tot  * (V_REG / 4095.0) / (CURRENT_SHUNT_RES * CURRENT_AMP_GAIN) / NSAMPLES,
+					 curc_tot  * (V_REG / 4095.0) / (CURRENT_SHUNT_RES * CURRENT_AMP_GAIN) / NSAMPLES );
+
+			mc_interface_set_configuration(&mcconf_old);
+			timeout_configure(tout, tout_c);
+			mcpwm_stop_pwm ();
+
+
+		} else {
+			commands_printf("This command requires one argument.\n");
+		}
+
 	} else if (strcmp(argv[0], "measure_ind") == 0) {
 		if (argc == 2) {
 			float duty = -1.0;
