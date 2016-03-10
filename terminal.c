@@ -275,7 +275,9 @@ void terminal_process_string(char *str) {
 	} else if (strcmp(argv[0], "rew_res") == 0) {
 		if (argc == 2) {
 			float duty = -1.0;
-			int i, cura_tot, curb_tot, curc_tot;
+			int i, state;
+			int cura_tot, curb_tot, curc_tot;
+			int cura_off, curb_off, curc_off;
 			sscanf(argv[1], "%f", &duty);
 
 			if (duty >= 1.0) duty = duty / 100;
@@ -287,57 +289,83 @@ void terminal_process_string(char *str) {
 			commands_printf ("duty= %f", (double)duty);
 
 			mcconf.motor_type = MOTOR_TYPE_DC;
+			mcconf.motor_type = MOTOR_TYPE_BLDC;
+
+			mcconf.sensor_mode = SENSOR_MODE_SENSORED;
 			mcconf.cc_min_current = 0;
+			//mcconf.pwm_mode = PWM_MODE_BIPOLAR;
+			mcconf.pwm_mode = PWM_MODE_SYNCHRONOUS;
+			
+#if 0
+			commands_printf ("Hall: ");
+			for (i=0;i<8;i++) 
+			  commands_printf (" %d", mcconf.hall_table[i]);
+#endif
+			
+			for (i=0;i<8;i++) 
+			  mcconf.hall_table[i] = 2;
+			  
 			//mcconf.l_min_duty = 0.001;
 			mc_interface_set_configuration(&mcconf);
 #define NSAMPLES 2000
-			cura_tot = curb_tot  = curc_tot = 0;
+			cura_off = curb_off  = curc_off = 0;
 			for (i=0;i<NSAMPLES;i++) {
-			  cura_tot -= ADC_Value[3];
-			  curb_tot -= ADC_Value[9];
-			  curc_tot -= ADC_Value[4];
+			  cura_off += ADC_Value[4];
+			  curb_off += ADC_Value[9];
+			  curc_off += ADC_Value[3];
 			  chThdSleepMilliseconds (1);
-			  if ((i % 100) == 0)
+			  if ((i % 1000) == 0)
 			  commands_printf ("%d %d %d %d %d  %f %f",  
 					   ADC_Value[3], ADC_Value[9], ADC_Value[4], reason, debug_caller, (double)mcpwm_get_tot_current_filtered() , (double)mcpwm_get_tot_current());
 			}
 
-			commands_printf ("curtot = %d %d %d\n", cura_tot, curb_tot, curc_tot);
-			commands_printf ("--- control_mode = %d", control_mode);
-			mcpwm_set_duty_noramp (duty);
-			//commands_printf("Resistance: %.6f ohm\n", (double)mcpwm_foc_measure_resistance(current, 2000));
-			chThdSleepMilliseconds (100);
+			commands_printf ("curent offset = %d %d %d\n", cura_off, curb_off, curc_off);
+			//commands_printf ("--- control_mode = %d", control_mode);
 
-			// Wait for the current to rise and the motor to lock.
-			// cura_tot = curb_tot  = curc_tot = 0;
-			for (i=0;i<NSAMPLES;i++) {
-			  cura_tot += ADC_Value[3];
-			  curb_tot += ADC_Value[9];
-			  curc_tot += ADC_Value[4];
-			  if ((i %100) == 0) {
-			    commands_printf ("%d %d %d %d %d %d %d %d %d %d  %f %f",  
-					     ADC_Value[3], ADC_Value[9], ADC_Value[4], state, reason,  debug_top, debug_duty, debug_duty_in, debug_caller, control_mode, (double)mcpwm_get_tot_current_filtered(), (double)mcpwm_get_tot_current());
-			  } 
-			  chThdSleepMilliseconds(1);
+
+			for (state = 1;state <= 6;state++) {
+			  for (i=0;i<8;i++) 
+			    mcconf.hall_table[i] = state;
+			  
+			  //mcconf.l_min_duty = 0.001;
+			  mc_interface_set_configuration(&mcconf);
+			  
+			  mcpwm_set_duty_noramp (duty);
+
+			  // Wait for the current to rise and the motor to lock.
+			  chThdSleepMilliseconds (100);
+
+			  cura_tot = curb_tot  = curc_tot = 0;
+
+			  for (i=0;i<NSAMPLES;i++) {
+			    cura_tot += ADC_Value[3];
+			    curb_tot += ADC_Value[9];
+			    curc_tot += ADC_Value[4];
+			    if ((i %1000) == 0) {
+			      commands_printf ("%d %d %d %d %d %d %d %d %d %d  %f %f",  
+					       ADC_Value[3], ADC_Value[9], ADC_Value[4], state, reason,  debug_top, debug_duty, debug_duty_in, debug_caller, control_mode, (double)mcpwm_get_tot_current_filtered(), (double)mcpwm_get_tot_current());
+			    } 
+			    chThdSleepMilliseconds(1);
+			  }
+			  cura_tot -= cura_off;
+			  curb_tot -= curb_off;
+			  curc_tot -= curc_off;
+			  
+			  //commands_printf ("curtot = %d %d %d\n", cura_tot, curb_tot, curc_tot);
+
+#define CURCONV ((V_REG / 4095.0) / (CURRENT_SHUNT_RES * CURRENT_AMP_GAIN) / NSAMPLES)
+			  commands_printf ("curtot %d = a: %f b: %f c: %f\n", state,
+					   (double) (cura_tot  * CURCONV),
+					   (double) (curb_tot  * CURCONV),
+					   (double) (curc_tot  * CURCONV));
 			}
+
 			//mcpwm_set_duty (0.0);
 			mcpwm_set_duty_noramp (0.0);
 			chThdSleepMilliseconds (100);
 
 			mcpwm_stop_pwm ();
 			chThdSleepMilliseconds (100);
-
-#if 1
-			for (i=0;i<100;i+=100) {
-			  commands_printf ("state = %d", mcpwm_get_state ());
-			  chThdSleepMilliseconds (100);
-			}
-#endif
-			commands_printf ("curtot = %d %d %d\n", cura_tot, curb_tot, curc_tot);
-
-			commands_printf ("curtot = %f %f\n", 
-					 cura_tot  * (V_REG / 4095.0) / (CURRENT_SHUNT_RES * CURRENT_AMP_GAIN) / NSAMPLES,
-					 curc_tot  * (V_REG / 4095.0) / (CURRENT_SHUNT_RES * CURRENT_AMP_GAIN) / NSAMPLES );
 
 			mc_interface_set_configuration(&mcconf_old);
 			timeout_configure(tout, tout_c);
