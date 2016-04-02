@@ -81,10 +81,10 @@
 #define VIN_R2				2200.0
 #endif
 #ifndef CURRENT_AMP_GAIN
-#define CURRENT_AMP_GAIN	11.0
+#define CURRENT_AMP_GAIN	8.0
 #endif
 #ifndef CURRENT_SHUNT_RES
-#define CURRENT_SHUNT_RES	0.003
+#define CURRENT_SHUNT_RES	0.001
 #endif
 
 // Input voltage
@@ -171,5 +171,9 @@
 #define READ_HALL1()				palReadPad(HW_HALL_ENC_GPIO1, HW_HALL_ENC_PIN1)
 #define READ_HALL2()				palReadPad(HW_HALL_ENC_GPIO2, HW_HALL_ENC_PIN2)
 #define READ_HALL3()				palReadPad(HW_HALL_ENC_GPIO3, HW_HALL_ENC_PIN3)
+
+
+#define DEBUG_PORT GPIOB
+#define DEBUG_PIN  6
 
 #endif /* HW_BW_H_ */

@@ -2360,6 +2360,13 @@ static void commutate(int steps) {
 		while (comm_step < 1) {
 			comm_step += 6;
 		}
+		//XXX	
+		palSetPadMode(DEBUG_PORT, DEBUG_PIN,
+			PAL_MODE_OUTPUT_PUSHPULL |
+			PAL_STM32_OSPEED_HIGHEST);
+
+		if (comm_step == 1) palSetPad (DEBUG_PORT, DEBUG_PIN);
+		else                palClearPad (DEBUG_PORT, DEBUG_PIN);
 
 		update_rpm_tacho();
 

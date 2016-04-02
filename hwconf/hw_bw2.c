@@ -172,10 +172,10 @@ void hw_setup_adc_channels(void) {
 	ADC_RegularChannelConfig(ADC3, ADC_Channel_10, 4, ADC_SampleTime_15Cycles); // TEMP_MOTOR
 
 	// Injected channels
-	ADC_InjectedChannelConfig(ADC1, ADC_Channel_5, 1, ADC_SampleTime_15Cycles);  // SO1/ISENSA
-	ADC_InjectedChannelConfig(ADC1, ADC_Channel_4, 2, ADC_SampleTime_15Cycles);  // SO2/ISENSC
-	ADC_InjectedChannelConfig(ADC2, ADC_Channel_4, 1, ADC_SampleTime_15Cycles);  // SO2/ISENSC
-	ADC_InjectedChannelConfig(ADC2, ADC_Channel_5, 2, ADC_SampleTime_15Cycles);  // SO1/ISENSA
+	ADC_InjectedChannelConfig(ADC1, ADC_Channel_4, 1, ADC_SampleTime_15Cycles);  // SO1/ISENSA
+	ADC_InjectedChannelConfig(ADC1, ADC_Channel_5, 2, ADC_SampleTime_15Cycles);  // SO2/ISENSC
+	ADC_InjectedChannelConfig(ADC2, ADC_Channel_5, 1, ADC_SampleTime_15Cycles);  // SO2/ISENSC
+	ADC_InjectedChannelConfig(ADC2, ADC_Channel_4, 2, ADC_SampleTime_15Cycles);  // SO1/ISENSA
 }
 
 void hw_setup_servo_outputs(void) {
