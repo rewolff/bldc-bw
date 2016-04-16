@@ -58,7 +58,7 @@
 #define ADC_IND_CURR2				3
 #define ADC_IND_VIN_SENS			8
 #define ADC_IND_EXT					10
-#define ADC_IND_EXT2				7
+//#define ADC_IND_EXT2				7
 #define ADC_IND_TEMP_MOS1			9
 #define ADC_IND_TEMP_MOS2			9
 #define ADC_IND_TEMP_MOS3			9
@@ -81,10 +81,10 @@
 #define VIN_R2				2200.0
 #endif
 #ifndef CURRENT_AMP_GAIN
-#define CURRENT_AMP_GAIN	8.0
+#define CURRENT_AMP_GAIN	8.0   // EFFECTIVE gain. 
 #endif
 #ifndef CURRENT_SHUNT_RES
-#define CURRENT_SHUNT_RES	0.001
+#define CURRENT_SHUNT_RES	0.003
 #endif
 
 // Input voltage

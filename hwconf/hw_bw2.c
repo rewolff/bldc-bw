@@ -58,7 +58,7 @@ NOTE: The ESC_STM32 board is incorrectly silkscreened as STM32_ESC.
    TEMP_MOTOR TEMP   PC0           PC0 
    AN_IN             PC2           --
    LED_GREEN         PC4           PC4
-   ADC_EXT           PC5           -- (named) 
+   ADC_EXT           PC5           -- (named)  (XXX Patched to PB0)
    TX_SDA            PC6           PC6
    RX_SCL            PC7           PC7
    EN_GATE           PC10          PC10
@@ -130,6 +130,10 @@ void hw_init_gpio(void) {
 	palSetPadMode(HW_HALL_ENC_GPIO2, HW_HALL_ENC_PIN2, PAL_MODE_INPUT_PULLUP);
 	palSetPadMode(HW_HALL_ENC_GPIO3, HW_HALL_ENC_PIN3, PAL_MODE_INPUT_PULLUP);
 
+	palSetPadMode(GPIOB, 0, PAL_MODE_INPUT_ANALOG); // adc_ext
+	palSetPadMode(GPIOB, 7, PAL_MODE_OUTPUT_PUSHPULL | PAL_STM32_OSPEED_HIGHEST);
+	palSetPad(GPIOB, 7); // VCC for potmeter. 
+
 	// Fault pin
 	palSetPadMode(GPIOC, 12, PAL_MODE_INPUT_PULLUP);
 
@@ -150,9 +154,13 @@ void hw_init_gpio(void) {
 	palSetPadMode(GPIOC, 2, PAL_MODE_INPUT_ANALOG);
 	palSetPadMode(GPIOC, 3, PAL_MODE_INPUT_ANALOG);
 	palSetPadMode(GPIOC, 5, PAL_MODE_INPUT_ANALOG);
+
 }
 
 void hw_setup_adc_channels(void) {
+
+	palSetPadMode(GPIOB, 1, PAL_MODE_INPUT_ANALOG);
+
 	// ADC1 regular channels
         ADC_RegularChannelConfig(ADC1, ADC_Channel_0, 1, ADC_SampleTime_15Cycles); // SENS3
 	ADC_RegularChannelConfig(ADC1, ADC_Channel_5, 2, ADC_SampleTime_15Cycles); // SO2 ISENSC
@@ -163,7 +171,7 @@ void hw_setup_adc_channels(void) {
 	ADC_RegularChannelConfig(ADC2, ADC_Channel_1, 1, ADC_SampleTime_15Cycles); // SENS2
 	ADC_RegularChannelConfig(ADC2, ADC_Channel_4, 2, ADC_SampleTime_15Cycles); // SO1 ISENSA
 	ADC_RegularChannelConfig(ADC2, ADC_Channel_9, 3, ADC_SampleTime_15Cycles); // ADC_EXT2
-	ADC_RegularChannelConfig(ADC2, ADC_Channel_15, 4, ADC_SampleTime_15Cycles); // ADC_EXT
+	ADC_RegularChannelConfig(ADC2, ADC_Channel_8, 4, ADC_SampleTime_15Cycles); // ADC_EXT
 
 	// ADC3 regular channels
 	ADC_RegularChannelConfig(ADC3, ADC_Channel_2, 1, ADC_SampleTime_15Cycles);  // SENS1
