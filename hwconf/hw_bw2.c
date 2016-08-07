@@ -42,7 +42,7 @@ NOTE: The ESC_STM32 board is incorrectly silkscreened as STM32_ESC.
    H2                PA9           PA9
    H1                PA10          PA10
 
-   ADC_EXT2          PB1           --
+   ADC_EXT2          PB1           PB0
    SERVO             PB5           PB9          *
    HALL_1            PB6           PB6
    HALL_2            PB7           PB7
@@ -58,7 +58,7 @@ NOTE: The ESC_STM32 board is incorrectly silkscreened as STM32_ESC.
    TEMP_MOTOR TEMP   PC0           PC0 
    AN_IN             PC2           --
    LED_GREEN         PC4           PC4
-   ADC_EXT           PC5           -- (named) 
+   ADC_EXT           PC5           PB1 (named) 
    TX_SDA            PC6           PC6
    RX_SCL            PC7           PC7
    EN_GATE           PC10          PC10
@@ -162,8 +162,8 @@ void hw_setup_adc_channels(void) {
 	// ADC2 regular channels
 	ADC_RegularChannelConfig(ADC2, ADC_Channel_1, 1, ADC_SampleTime_15Cycles); // SENS2
 	ADC_RegularChannelConfig(ADC2, ADC_Channel_4, 2, ADC_SampleTime_15Cycles); // SO1 ISENSA
-	ADC_RegularChannelConfig(ADC2, ADC_Channel_9, 3, ADC_SampleTime_15Cycles); // ADC_EXT2
-	ADC_RegularChannelConfig(ADC2, ADC_Channel_15, 4, ADC_SampleTime_15Cycles); // ADC_EXT
+	ADC_RegularChannelConfig(ADC2, ADC_Channel_8, 3, ADC_SampleTime_15Cycles); // ADC_EXT2
+	ADC_RegularChannelConfig(ADC2, ADC_Channel_9, 4, ADC_SampleTime_15Cycles); // ADC_EXT
 
 	// ADC3 regular channels
 	ADC_RegularChannelConfig(ADC3, ADC_Channel_2, 1, ADC_SampleTime_15Cycles);  // SENS1
