@@ -40,10 +40,10 @@
  * 4:	IN6		CURR1
  * 5:	IN3		NC
  * 6:	Vrefint
- * 7:	IN9		ADC_EXT2
+ * 7:	IN8		ADC_EXT2
  * 8:	IN12	AN_IN
  * 9:	IN4		TEMP_MOSFET
- * 10:	IN15	ADC_EXT
+ * 10:	IN9	ADC_EXT
  * 11:	IN10	TEMP_MOTOR
  */
 
@@ -56,9 +56,9 @@
 #define ADC_IND_SENS3				0
 #define ADC_IND_CURR1				4
 #define ADC_IND_CURR2				3
-#define ADC_IND_VIN_SENS			8
-#define ADC_IND_EXT					10
-//#define ADC_IND_EXT2				7
+#define ADC_IND_VIN_SENS			5
+#define ADC_IND_EXT				10
+#define ADC_IND_EXT2				7
 #define ADC_IND_TEMP_MOS1			9
 #define ADC_IND_TEMP_MOS2			9
 #define ADC_IND_TEMP_MOS3			9
@@ -81,10 +81,10 @@
 #define VIN_R2				2200.0
 #endif
 #ifndef CURRENT_AMP_GAIN
-#define CURRENT_AMP_GAIN	8.0   // EFFECTIVE gain. 
+#define CURRENT_AMP_GAIN	8.0
 #endif
 #ifndef CURRENT_SHUNT_RES
-#define CURRENT_SHUNT_RES	0.003
+#define CURRENT_SHUNT_RES	0.001
 #endif
 
 // Input voltage
