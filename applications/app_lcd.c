@@ -5,7 +5,10 @@
 #include "mc_interface.h" // Motor control functions
 #include "hw.h" // Pin mapping on this hardware
 #include "timeout.h" // To reset the timeout
- 
+
+// for sprintf
+#include <stdio.h>
+
 // lcd thread
 static THD_FUNCTION(lcd_thread, arg);
 static THD_WORKING_AREA(lcd_thread_wa, 2048); // 2kb stack for this thread
@@ -76,6 +79,8 @@ void print_text (char *buf, int len)
   spitx (sbuf, len+2);
 }
 
+
+
 void setreg8 (int reg, int val)
 {
   char sbuf[0x4];
@@ -84,6 +89,55 @@ void setreg8 (int reg, int val)
   sbuf[2] = val;
   spitx (sbuf, 3);
 }
+
+#define NLINES 4
+#define NCHARS 20
+char display[NLINES][24];
+char olddisplay[NLINES][24];
+
+void print_at (int x, int y, char *s)
+{
+  int l;
+  if (y >= NLINES) return;
+  l = strlen (s);
+  if (l > (NCHARS-x))
+    l = NCHARS-x;
+
+  memcpy (display[y]+x , s, l);
+}
+
+
+void update_lcd (void)
+{
+  static int nn;
+  int i, j, k;
+
+  if (nn++ > 10) {
+    setreg8 (0x10, 0);
+    memset (olddisplay, ' ', sizeof (olddisplay));
+    chThdSleep(1);
+    nn=0;
+  }
+  for (i=0;i<NLINES;i++) 
+    for (j=0;j<NCHARS;j++) 
+      if (display[i][j] == 0)
+	display[i][j] = ' ';
+  for (i=0;i<NLINES;i++) {
+    for (j=0;j<NCHARS;j++) 
+      if (olddisplay[i][j] != display[i][j]) break;
+    if (j < NCHARS) {
+      for (k=NCHARS-1;k>j;k--)
+	if (olddisplay[i][k] != display[i][k]) break;
+      setreg8 (0x11, (i << 5) + j);
+      chThdSleep(1);
+      print_text (display[i]+j, k-j+1);
+      chThdSleep(10);
+      memcpy (olddisplay[i]+j, display[i]+j, k-j+1);
+    }
+  }
+}
+
+
 
 void app_lcd_init(void) 
 {
@@ -102,7 +156,9 @@ void app_lcd_init(void)
   palSetPadMode(GPIOB, 5, PAL_MODE_ALTERNATE( GPIO_AF_SPI1));
   
   spiStart(&MYSPI, &ls_spicfg); 
-  
+
+  memset (display, ' ', sizeof(display));
+
   // Start the lcd thread
   chThdCreateStatic(lcd_thread_wa, sizeof(lcd_thread_wa),
 		    NORMALPRIO, lcd_thread, NULL);
@@ -110,23 +166,29 @@ void app_lcd_init(void)
 
 
 
-static char buf[0x20];
+//static char buf[0x20];
  
 static THD_FUNCTION(lcd_thread, arg) 
 {
   (void)arg;
-  float rpm;
+  //  float rpm;
 
   chRegSetThreadName("APP_LCD");
  
   for(;;) {
-    rpm = mc_interface_get_rpm();
-    sprintf (buf, "rpm: %.0f", rpm);
-    setreg8 (0x10, 0);
-    chThdSleepMilliseconds(10);
-    print_text (buf, strlen (buf));
+    //    rpm = mc_interface_get_rpm() / 7;
+    //sprintf (buf, "rpm: %.0f", rpm);
+    //setreg8 (0x10, 0);
+    //chThdSleepMilliseconds(10);
+    //print_text (buf, strlen (buf));
+
+    sprintf (&display[0][0], "rpm: %.0f", (double) mc_interface_get_rpm() / 7);
+    sprintf (&display[1][0], "vin: %.2f", (double) GET_INPUT_VOLTAGE());
+    sprintf (&display[2][0], "current: %.1f", (double) mc_interface_get_tot_current());
+    
 
     // Run this loop at 10Hz
+    update_lcd ();
     chThdSleepMilliseconds(500);
 
     palTogglePad (GPIOB, 2);
