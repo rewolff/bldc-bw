@@ -110,31 +110,40 @@ void print_at (int x, int y, char *s)
 void update_lcd (void)
 {
   static int nn;
-  int i, j, k;
+  static int wait;
+  static int l;
 
-  if (nn++ > 10) {
+  int j, k;
+
+  if (wait > 0) {
+    wait--;
+    return;
+  }
+  if (nn++ > 500) {
     setreg8 (0x10, 0);
     memset (olddisplay, ' ', sizeof (olddisplay));
-    chThdSleep(1);
     nn=0;
+    wait = 1;
+    return;
   }
-  for (i=0;i<NLINES;i++) 
-    for (j=0;j<NCHARS;j++) 
-      if (display[i][j] == 0)
-	display[i][j] = ' ';
-  for (i=0;i<NLINES;i++) {
-    for (j=0;j<NCHARS;j++) 
-      if (olddisplay[i][j] != display[i][j]) break;
-    if (j < NCHARS) {
-      for (k=NCHARS-1;k>j;k--)
-	if (olddisplay[i][k] != display[i][k]) break;
-      setreg8 (0x11, (i << 5) + j);
-      chThdSleep(1);
-      print_text (display[i]+j, k-j+1);
-      chThdSleep(10);
-      memcpy (olddisplay[i]+j, display[i]+j, k-j+1);
-    }
+
+  for (j=0;j<NCHARS;j++) 
+    if (display[l][j] == 0)
+      display[l][j] = ' ';
+
+  for (j=0;j<NCHARS;j++) 
+    if (olddisplay[l][j] != display[l][j]) break;
+  if (j < NCHARS) {
+    for (k=NCHARS-1;k>j;k--)
+      if (olddisplay[l][k] != display[l][k]) break;
+    setreg8 (0x11, (l << 5) + j);
+    chThdSleep(1);
+    print_text (display[l]+j, k-j+1);
+    memcpy (olddisplay[l]+j, display[l]+j, k-j+1);
+    wait = 1;
   }
+  if (l < (NLINES-1)) l++;
+  else l = 0;
 }
 
 
@@ -172,26 +181,45 @@ static THD_FUNCTION(lcd_thread, arg)
 {
   (void)arg;
   //  float rpm;
+  double ptot, rpmtot, dutytot, vintot, curtot;
+  int t;
 
   chRegSetThreadName("APP_LCD");
- 
+  t=0;
+  ptot = rpmtot = dutytot = vintot = curtot = 0;
+
   for(;;) {
+    if (t <99) t++;
+    else t=0;
+    chThdSleepMilliseconds (10);
+
     //    rpm = mc_interface_get_rpm() / 7;
     //sprintf (buf, "rpm: %.0f", rpm);
     //setreg8 (0x10, 0);
     //chThdSleepMilliseconds(10);
     //print_text (buf, strlen (buf));
 
-    sprintf (&display[0][0], "rpm: %.0f", (double) mc_interface_get_rpm() / 7);
-    sprintf (&display[1][0], "vin: %.2f", (double) GET_INPUT_VOLTAGE());
-    sprintf (&display[2][0], "current: %.1f", (double) mc_interface_get_tot_current());
-    
+    ptot    += (double) GET_INPUT_VOLTAGE() * (double) mc_interface_get_duty_cycle_now () * (double) mc_interface_get_tot_current();
+    rpmtot  += (double) mc_interface_get_rpm();
+    dutytot += (double) mc_interface_get_duty_cycle_now();
+    vintot  += (double) GET_INPUT_VOLTAGE();
+    curtot  += (double) mc_interface_get_tot_current();
+
+    if ((t==0) || (t == 50)) {
+#define INTTIME ((double)50.0 )
+      sprintf (&display[0][0], "rpm: %.0f", (double) rpmtot/(double)7.0/INTTIME);
+      sprintf (&display[0][12], "duty: %.0f", (double) dutytot*(double)100.0/INTTIME);
+      sprintf (&display[1][0], "vin: %.2f", (double) vintot / INTTIME);
+      sprintf (&display[2][0], "current: %.1f", (double) curtot/INTTIME);
+      sprintf (&display[3][0], "power: %.1f", (double) ptot/INTTIME);
+      palTogglePad (GPIOB, 2);
+      ptot = rpmtot = dutytot = vintot = curtot = 0;
+    }
 
     // Run this loop at 10Hz
     update_lcd ();
-    chThdSleepMilliseconds(500);
+    //    chThdSleepMilliseconds(500);
 
-    palTogglePad (GPIOB, 2);
     // Reset the timeout
     timeout_reset();
   }
