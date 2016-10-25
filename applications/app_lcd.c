@@ -16,7 +16,7 @@ static THD_WORKING_AREA(lcd_thread_wa, 2048); // 2kb stack for this thread
 #define LED_PORT GPIOB
 #define LED_PIN  2
 
-#if 1 
+#if 0 
 // on STM32 CPU
 #define NCS_PORT GPIOB
 #define NCS_PIN  11
@@ -208,7 +208,7 @@ static THD_FUNCTION(lcd_thread, arg)
     if ((t==0) || (t == 50)) {
 #define INTTIME ((double)50.0 )
       sprintf (&display[0][0], "rpm: %.0f", (double) rpmtot/(double)7.0/INTTIME);
-      sprintf (&display[0][12], "duty: %.0f", (double) dutytot*(double)100.0/INTTIME);
+      sprintf (&display[0][12], "duty:%.0f", (double) dutytot*(double)100.0/INTTIME);
       sprintf (&display[1][0], "vin: %.2f", (double) vintot / INTTIME);
       sprintf (&display[2][0], "current: %.1f", (double) curtot/INTTIME);
       sprintf (&display[3][0], "power: %.1f", (double) ptot/INTTIME);
