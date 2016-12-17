@@ -205,6 +205,11 @@ static THD_FUNCTION(lcd_thread, arg)
     vintot  += (double) GET_INPUT_VOLTAGE();
     curtot  += (double) mc_interface_get_tot_current();
 
+// use  mc_interface_read_reset_avg_input_current
+// as the function to get the input current. Should be more accurate than what
+// I whipped up here. 
+
+
     if ((t==0) || (t == 50)) {
 #define INTTIME ((double)50.0 )
       sprintf (&display[0][0], "rpm: %.0f", (double) rpmtot/(double)7.0/INTTIME);
