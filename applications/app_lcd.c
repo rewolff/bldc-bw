@@ -274,6 +274,10 @@ static THD_FUNCTION(lcd_thread, arg)
     //    if (dc) 
     batcurtot += (double) mc_interface_get_tot_current() * dc;
     fc = mc_interface_get_fault ();
+// use  mc_interface_read_reset_avg_input_current
+// as the function to get the input current. Should be more accurate than what
+// I whipped up here. 
+
 
     if ((t==0) || (t == 50)) {
 #define INTTIME ((double)50.0 )
