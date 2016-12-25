@@ -244,8 +244,8 @@ static THD_FUNCTION(lcd_thread, arg)
 {
   (void)arg;
   //  float rpm;
-  double ptot, rpmtot, dutytot, vintot, curtot, batcurtot;
-  double dc;
+  float ptot, rpmtot, dutytot, vintot, curtot, batcurtot;
+  float dc;
   int t;
   mc_fault_code fc;
 
@@ -264,36 +264,36 @@ static THD_FUNCTION(lcd_thread, arg)
     //chThdSleepMilliseconds(10);
     //print_text (buf, strlen (buf));
 
-    ptot    += (double) GET_INPUT_VOLTAGE() * (double) mc_interface_get_duty_cycle_now () * (double) mc_interface_get_tot_current();
-    rpmtot  += (double) mc_interface_get_rpm();
-    dc       = (double) mc_interface_get_duty_cycle_now();
+    ptot    += GET_INPUT_VOLTAGE() * mc_interface_get_duty_cycle_now () * mc_interface_get_tot_current();
+    rpmtot  += mc_interface_get_rpm();
+    dc       = mc_interface_get_duty_cycle_now();
     dutytot += dc;
-    vintot  += (double) GET_INPUT_VOLTAGE();
-    curtot  += (double) mc_interface_get_tot_current();
+    vintot  += GET_INPUT_VOLTAGE();
+    curtot  += mc_interface_get_tot_current();
 
     //    if (dc) 
-    batcurtot += (double) mc_interface_get_tot_current() * dc;
+    batcurtot += mc_interface_get_tot_current() * dc;
     fc = mc_interface_get_fault ();
-// use  mc_interface_read_reset_avg_input_current
-// as the function to get the input current. Should be more accurate than what
-// I whipped up here. 
-
 
     if ((t==0) || (t == 50)) {
-#define INTTIME ((double)50.0 )
-      sprintf (&display[0][0], "rpm: %.0f", (double) rpmtot/(double)7.0/INTTIME);
-      sprintf (&display[0][12], "duty:%.0f", (double) dutytot*(double)100.0/INTTIME);
-      sprintf (&display[1][0], "vin: %.2f ", (double) vintot / INTTIME);
+#define INTTIME (50.0 )
+      sprintf (&display[0][0], "%.1fkm/h", (double) (rpmtot/500.0/INTTIME));
 
+      sprintf (&display[0][12], "duty:%.0f", (double) (dutytot*100.0/INTTIME));
+      sprintf (&display[1][0], "vin: %.2f ", (double) (vintot / INTTIME));
 
-      sprintf (&display[1][12], "thr: %.0f ", (double) 99 * app_adc_get_decoded_level() );
+      sprintf (&display[1][12], "thr: %.0f ", (double) (99 * app_adc_get_decoded_level()) );
       // app_adc_get_decoded_level() 
       // app_adc_get_voltage ()
 
 
-      sprintf (&display[2][0], "I: %.1f/%.1lf", (double)batcurtot/INTTIME, 
-	       (double) curtot/INTTIME);
-      sprintf (&display[3][0], "P: %.0f", (double) ptot/INTTIME);
+      sprintf (&display[2][0], "I: %.1f/%.1lf", 
+	(double) mc_interface_read_reset_avg_input_current (), 
+ 	(double) mc_interface_read_reset_avg_motor_current ());
+
+      sprintf (&display[2][12], "%.0fWh", (double) mc_interface_get_watt_hours(0) );
+
+      sprintf (&display[3][0], "P: %.0f", (double) (ptot/INTTIME));
       sprintf (&display[3][8], "flt: %s", fc_to_string (fc));
 
       palTogglePad (GPIOB, 2);
