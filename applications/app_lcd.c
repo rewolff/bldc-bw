@@ -16,7 +16,7 @@ static THD_WORKING_AREA(lcd_thread_wa, 2048); // 2kb stack for this thread
 #define LED_PORT GPIOB
 #define LED_PIN  2
 
-#if 1 
+#if 0 
 // on STM32 CPU
 #define NCS_PORT GPIOB
 #define NCS_PIN  11
@@ -66,7 +66,26 @@ void spitx (char *buf, int len)
 }
 
 
-int addr = 0x82;
+char debug_buf[0x10];
+
+void spitxrx (char *buf, int len)
+{
+  int i; 
+  spiSelect(&MYSPI);                  /* Slave Select assertion.          */
+  delay_us (15);
+  for (i=0;i<len;i++) {
+    buf[i] = spiPolledExchange(&MYSPI, buf[i]);          /* Atomic transfer operations.      */
+    delay_us (delay);
+  }
+  delay_us (10);
+   //    spiExchange(&SPID2, 1, buf+i, buf+i);          /* Atomic transfer operations.      */
+  memcpy (debug_buf+1, buf, len);
+  debug_buf[0] = len;
+  spiUnselect(&MYSPI);           
+}
+
+
+int addr = 0x94;
 
 
 void print_text (char *buf, int len)
@@ -80,7 +99,6 @@ void print_text (char *buf, int len)
 }
 
 
-
 void setreg8 (int reg, int val)
 {
   char sbuf[0x4];
@@ -89,6 +107,19 @@ void setreg8 (int reg, int val)
   sbuf[2] = val;
   spitx (sbuf, 3);
 }
+
+
+
+int getreg8 (int reg)
+{
+  char sbuf[0x4];
+  sbuf[0] = addr + 1;
+  sbuf[1] = reg;
+  sbuf[2] = 0;
+  spitxrx (sbuf, 3);
+  return sbuf[2];
+}
+
 
 #define NLINES 4
 #define NCHARS 20
@@ -148,6 +179,20 @@ void update_lcd (void)
 
 
 
+int probe (int testaddr)
+{
+  int rv;
+
+  addr = testaddr;
+  delay_us (50);
+  rv = getreg8 (0x12);
+  if ((rv == 0xff) || (rv == 0x00))
+    return 0;
+  
+  return 1;
+}
+
+
 void app_lcd_init(void) 
 {
   // Set the UART TX pin as an input with pulldown
@@ -168,11 +213,29 @@ void app_lcd_init(void)
 
   memset (display, ' ', sizeof(display));
 
+  if (!probe (0x82))
+    probe (0x94);
+
   // Start the lcd thread
   chThdCreateStatic(lcd_thread_wa, sizeof(lcd_thread_wa),
 		    NORMALPRIO, lcd_thread, NULL);
 }
 
+char *fc_to_string (mc_fault_code fault) 
+{
+  switch (fault) {
+  case FAULT_CODE_NONE: return "NONE"; break;
+  case FAULT_CODE_OVER_VOLTAGE: return "Vin high"; break;
+  case FAULT_CODE_UNDER_VOLTAGE: return "Vin low"; break;
+  case FAULT_CODE_DRV8302: return "DRV"; break;
+  case FAULT_CODE_ABS_OVER_CURRENT: return "ABS I hi"; break;
+  case FAULT_CODE_OVER_TEMP_FET: return "FET hot"; break;
+  case FAULT_CODE_OVER_TEMP_MOTOR: return "mot hot"; break;
+  default: return "???"; break;
+  }
+}
+
+extern float app_adc_get_decoded_level(void);
 
 
 //static char buf[0x20];
@@ -181,12 +244,14 @@ static THD_FUNCTION(lcd_thread, arg)
 {
   (void)arg;
   //  float rpm;
-  double ptot, rpmtot, dutytot, vintot, curtot;
+  float ptot, rpmtot, dutytot, vintot, curtot, batcurtot;
+  float dc;
   int t;
+  mc_fault_code fc;
 
   chRegSetThreadName("APP_LCD");
   t=0;
-  ptot = rpmtot = dutytot = vintot = curtot = 0;
+  ptot = rpmtot = dutytot = vintot = curtot = batcurtot = 0;
 
   for(;;) {
     if (t <99) t++;
@@ -199,26 +264,44 @@ static THD_FUNCTION(lcd_thread, arg)
     //chThdSleepMilliseconds(10);
     //print_text (buf, strlen (buf));
 
-    ptot    += (double) GET_INPUT_VOLTAGE() * (double) mc_interface_get_duty_cycle_now () * (double) mc_interface_get_tot_current();
-    rpmtot  += (double) mc_interface_get_rpm();
-    dutytot += (double) mc_interface_get_duty_cycle_now();
-    vintot  += (double) GET_INPUT_VOLTAGE();
-    curtot  += (double) mc_interface_get_tot_current();
+    ptot    += GET_INPUT_VOLTAGE() * mc_interface_get_duty_cycle_now () * mc_interface_get_tot_current();
+    rpmtot  += mc_interface_get_rpm();
+    dc       = mc_interface_get_duty_cycle_now();
+    dutytot += dc;
+    vintot  += GET_INPUT_VOLTAGE();
+    curtot  += mc_interface_get_tot_current();
 
 // use  mc_interface_read_reset_avg_input_current
 // as the function to get the input current. Should be more accurate than what
 // I whipped up here. 
 
+    //    if (dc) 
+    batcurtot += mc_interface_get_tot_current() * dc;
+    fc = mc_interface_get_fault ();
 
     if ((t==0) || (t == 50)) {
-#define INTTIME ((double)50.0 )
-      sprintf (&display[0][0], "rpm: %.0f", (double) rpmtot/(double)7.0/INTTIME);
-      sprintf (&display[0][12], "duty: %.0f", (double) dutytot*(double)100.0/INTTIME);
-      sprintf (&display[1][0], "vin: %.2f", (double) vintot / INTTIME);
-      sprintf (&display[2][0], "current: %.1f", (double) curtot/INTTIME);
-      sprintf (&display[3][0], "power: %.1f", (double) ptot/INTTIME);
+#define INTTIME (50.0 )
+      sprintf (&display[0][0], "%.1fkm/h", (double) (rpmtot/500.0/INTTIME));
+
+      sprintf (&display[0][12], "duty:%.0f", (double) (dutytot*100.0/INTTIME));
+      sprintf (&display[1][0], "vin: %.2f ", (double) (vintot / INTTIME));
+
+      sprintf (&display[1][12], "thr: %.0f ", (double) (99 * app_adc_get_decoded_level()) );
+      // app_adc_get_decoded_level() 
+      // app_adc_get_voltage ()
+
+
+      sprintf (&display[2][0], "I: %.1f/%.1lf", 
+	(double) mc_interface_read_reset_avg_input_current (), 
+ 	(double) mc_interface_read_reset_avg_motor_current ());
+
+      sprintf (&display[2][12], "%.0fWh", (double) mc_interface_get_watt_hours(0) );
+
+      sprintf (&display[3][0], "P: %.0f", (double) (ptot/INTTIME));
+      sprintf (&display[3][8], "flt: %s", fc_to_string (fc));
+
       palTogglePad (GPIOB, 2);
-      ptot = rpmtot = dutytot = vintot = curtot = 0;
+      ptot = rpmtot = dutytot = vintot = curtot = batcurtot = 0;
     }
 
     // Run this loop at 10Hz
