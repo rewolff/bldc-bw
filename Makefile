@@ -282,3 +282,7 @@ debug-start:
 
 RULESPATH = $(CHIBIOS)/os/common/ports/ARMCMx/compilers/GCC
 include $(RULESPATH)/rules.mk
+
+$(BUILDDIR)/$(PROJECT).dfu: $(BUILDDIR)/$(PROJECT).bin
+	dfuse-pack.py -b 0x8000000:$(BUILDDIR)/$(PROJECT).bin $@
+

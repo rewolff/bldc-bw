@@ -291,7 +291,8 @@ static THD_FUNCTION(lcd_thread, arg)
 	(double) mc_interface_read_reset_avg_input_current (), 
  	(double) mc_interface_read_reset_avg_motor_current ());
 
-      sprintf (&display[2][12], "%.0fWh", (double) mc_interface_get_watt_hours(0) );
+      sprintf (&display[2][14], "%.0fkJ", 
+		(double) 3.6*(double) mc_interface_get_watt_hours(0) );
 
       sprintf (&display[3][0], "P: %.0f", (double) (ptot/INTTIME));
       sprintf (&display[3][8], "flt: %s", fc_to_string (fc));

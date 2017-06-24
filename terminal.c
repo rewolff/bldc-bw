@@ -50,6 +50,11 @@ EXTERN int reason;
 EXTERN  volatile mc_control_mode control_mode;
 EXTERN int debug_top, debug_duty, debug_duty_in, debug_caller;
 
+static int read_hall(void) {
+        return READ_HALL1() | (READ_HALL2() << 1) | (READ_HALL3() << 2);
+}
+
+
 
 void terminal_process_string(char *str) {
 	enum { kMaxArgs = 64 };
@@ -89,6 +94,7 @@ void terminal_process_string(char *str) {
 		commands_printf("core free memory : %u bytes", chCoreGetStatusX());
 		commands_printf("heap fragments   : %u", n);
 		commands_printf("heap free total  : %u bytes\n", size);
+		commands_printf("time : %u\n", chVTGetSystemTime());
 	} else if (strcmp(argv[0], "threads") == 0) {
 		thread_t *tp;
 		static const char *states[] = {CH_STATE_NAMES};
@@ -272,6 +278,26 @@ void terminal_process_string(char *str) {
 		} else {
 			commands_printf("This command requires one argument.\n");
 		}
+	} else if (strcmp(argv[0], "wobble_pin") == 0) {
+		stm32_gpio_t *gp;
+		char *p;
+		int i, pin;
+
+		gp = GPIOA;
+		p = argv[1];
+		if (*p == 'p') p++;	
+		if (*p == 'P') p++;	
+		if ( (*p >= 'a') && (*p <= 'h')  ) 
+			gp = (stm32_gpio_t *) ((char *)GPIOA + (*p - 'a')*0x400);
+		pin = atoi (p+1);
+		palSetPadMode (gp, pin, PAL_MODE_OUTPUT_PUSHPULL);
+		palClearPad (gp, pin);
+		commands_printf ("toggling GPIO: = %x / %d: P%c%d \n", (int)gp, pin, *p, pin );
+		for (i=0;i<5000;i++) { 
+		  palTogglePad (gp, pin);
+		  chThdSleepMilliseconds (1);
+		}
+		commands_printf ("Done\n");
 	} else if (strcmp(argv[0], "rew_res") == 0) {
 		if (argc == 2) {
 			float duty = -1.0;
@@ -376,6 +402,15 @@ void terminal_process_string(char *str) {
 			commands_printf("This command requires one argument.\n");
 		}
 
+	} else if (strcmp(argv[0], "show_hall") == 0) {
+		int i;
+                int oldhal = -1, hal;
+                for (i=0;i<10000;i++) {
+                  hal = read_hall ();
+                  if (hal  != oldhal) commands_printf("%d %d %d", (hal & 1) >> 0, (hal&2)>>1, (hal&4)>>2 );
+                  oldhal = hal;
+                  chThdSleepMilliseconds (1);
+		}
 	} else if (strcmp(argv[0], "measure_ind") == 0) {
 		if (argc == 2) {
 			float duty = -1.0;

@@ -16,7 +16,7 @@
  */
 
 #include "hw.h"
-#ifdef HW_VERSION_BW2
+#ifdef HW_VERSION_BW3
 
 #include "ch.h"
 #include "hal.h"
@@ -43,14 +43,14 @@ NOTE: The ESC_STM32 board is incorrectly silkscreened as STM32_ESC.
    H1                PA10          PA10
 
    ADC_EXT2          PB1           PB0
-   SERVO             PB5           PB12          *
+   SERVO             PB5           PB9          *
    HALL_1            PB6           PB6
    HALL_2            PB7           PB7
    CAN_RX            PB8           --
    CAN_TX            PB9           --
    RX_SCL            PB10          --
    TX_SDA            PB11          --
-   DC_CAL            PB12          ---
+   DC_CAL            PB12          PB12
    L3                PB13          PB13
    L2                PB14          PB14
    L1                PB15          PB15
@@ -62,8 +62,8 @@ NOTE: The ESC_STM32 board is incorrectly silkscreened as STM32_ESC.
    TX_SDA            PC6           PC6
    RX_SCL            PC7           PC7
    EN_GATE           PC10          PC10
-   HALL_3            PB8           PC11           *
-   FAULT             PC12          --- 
+   HALL_3            PC11          PB8           *
+   FAULT             PC12          PC12 
 
 
 */

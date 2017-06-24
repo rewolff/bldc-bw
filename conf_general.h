@@ -50,7 +50,8 @@
  */
 #if !defined(HW_VERSION_40) && !defined(HW_VERSION_45) && !defined(HW_VERSION_46) && \
 	!defined(HW_VERSION_48) && !defined(HW_VERSION_49) && !defined(HW_VERSION_410) && \
-	!defined(HW_VERSION_R2) && !defined(HW_VERSION_VICTOR_R1A)
+	!defined(HW_VERSION_R2) && !defined(HW_VERSION_VICTOR_R1A) && !defined(HW_VERSION_BW) && \
+	!defined(HW_VERSION_BW2) && !defined(HW_VERSION_BW3)
 //#define HW_VERSION_40
 //#define HW_VERSION_45
 //#define HW_VERSION_46 // Also for 4.7
@@ -61,6 +62,7 @@
 //#define HW_VERSION_VICTOR_R1A
 //#define HW_VERSION_BW
 #define HW_VERSION_BW2
+//#define HW_VERSION_BW3
 #endif
 
 /*

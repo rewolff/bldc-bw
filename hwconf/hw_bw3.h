@@ -15,8 +15,8 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
     */
 
-#ifndef HW_BW2_H_
-#define HW_BW2_H_
+#ifndef HW_BW3_H_
+#define HW_BW3_H_
 
 // Macros
 #define ENABLE_GATE()			palSetPad(GPIOC, 10)
@@ -82,8 +82,16 @@
 #ifndef VIN_R2
 #define VIN_R2				2200.0
 #endif
+
+
+// BW3 has an ACS758. 
+// The ACS758-200B has a sensitivity of 10mV/A, or equivalent to 1mOhm and
+// then  multiplied by 10. 
+// However, we resistor-divide the value by 10/(10+4.7) = 0.6803. 
+// so we claim the AMP_GAIN is 6.8 instead of 10. 
+
 #ifndef CURRENT_AMP_GAIN
-#define CURRENT_AMP_GAIN	10.0
+#define CURRENT_AMP_GAIN	6.803
 #endif
 #ifndef CURRENT_SHUNT_RES
 #define CURRENT_SHUNT_RES	0.001
