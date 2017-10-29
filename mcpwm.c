@@ -64,8 +64,8 @@ static volatile int tachometer_for_direction;
 static volatile int curr0_sum;
 static volatile int curr1_sum;
 static volatile int curr_start_samples;
-static volatile int curr0_offset;
-static volatile int curr1_offset;
+volatile int curr0_offset;
+volatile int curr1_offset;
 static volatile mc_state state;
 static volatile mc_control_mode control_mode;
 static volatile float last_current_sample;
@@ -507,6 +507,9 @@ void mcpwm_init_hall_table(int8_t *table) {
 	}
 }
 
+void mcpwm_do_dc_cal(void) {
+ do_dc_cal();
+}
 static void do_dc_cal(void) {
 	DCCAL_ON();
 	while(IS_DRV_FAULT()){};
@@ -1546,7 +1549,7 @@ void mcpwm_adc_int_handler(void *p, uint32_t flags) {
 	(void)flags;
 
 	TIM12->CNT = 0;
-
+ 	palSetPad (GPIOC, 12);
 	// Set the next timer settings if an update is far enough away
 	update_timer_attempt();
 
@@ -1914,7 +1917,7 @@ void mcpwm_adc_int_handler(void *p, uint32_t flags) {
 	if (ENCODER_ENABLE) {
 		run_pid_control_pos(1.0 / switching_frequency_now);
 	}
-
+ 	palClearPad (GPIOC, 12);
 	last_adc_isr_duration = (float)TIM12->CNT / 10000000.0;
 }
 

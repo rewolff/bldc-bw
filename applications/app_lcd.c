@@ -245,7 +245,7 @@ static THD_FUNCTION(lcd_thread, arg)
   (void)arg;
   //  float rpm;
   float ptot, rpmtot, dutytot, vintot, curtot, batcurtot;
-  float dc;
+  float dc, ic;
   int t;
   mc_fault_code fc;
 
@@ -287,15 +287,24 @@ static THD_FUNCTION(lcd_thread, arg)
       // app_adc_get_voltage ()
 
 
-      sprintf (&display[2][0], "I: %.1f/%.1lf", 
-	(double) mc_interface_read_reset_avg_input_current (), 
+      ic = mc_interface_read_reset_avg_input_current (), 
+      sprintf (&display[2][0], "I: %.1f/%.1lf", (double) ic, 
  	(double) mc_interface_read_reset_avg_motor_current ());
 
       sprintf (&display[2][14], "%.0fkJ", 
 		(double) 3.6*(double) mc_interface_get_watt_hours(0) );
 
-      sprintf (&display[3][0], "P: %.0f", (double) (ptot/INTTIME));
+      sprintf (&display[3][0], "P: %.0f", (double) (ic * vintot / INTTIME));
+#if 0
       sprintf (&display[3][8], "flt: %s", fc_to_string (fc));
+#else
+      if (fc == FAULT_CODE_NONE) {
+	sprintf (&display[3][8], "t: %.0f (%d)", (double) ((((float)(ADC_Value[11]) * 3.3/4096.0 - 0.5)/0.010)), ADC_Value[11]);
+//	sprintf (&display[3][8], "t: %d", ADC_Value[11] );
+      } else
+	sprintf (&display[3][8], "flt: %s", fc_to_string (fc));
+
+#endif
 
       palTogglePad (GPIOB, 2);
       ptot = rpmtot = dutytot = vintot = curtot = batcurtot = 0;

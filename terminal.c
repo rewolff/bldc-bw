@@ -43,6 +43,10 @@
 static volatile fault_data fault_vec[FAULT_VEC_LEN];
 static volatile int fault_vec_write = 0;
 
+extern void mcpwm_do_dc_cal (void);
+
+// debug:
+extern int curr0_offset, curr1_offset;
 
 #define EXTERN
 EXTERN  volatile mc_state state;
@@ -54,6 +58,79 @@ static int read_hall(void) {
         return READ_HALL1() | (READ_HALL2() << 1) | (READ_HALL3() << 2);
 }
 
+
+static void steal_PWM (void)
+{
+  int i;
+  for (i=0;i<3;i++) {
+    palClearPad (GPIOB, 15-i);
+    palSetPadMode (GPIOB, 15-i, PAL_MODE_OUTPUT_PUSHPULL);
+    palClearPad (GPIOA, 10-i);
+    palSetPadMode (GPIOA, 10-i, PAL_MODE_OUTPUT_PUSHPULL);
+  }
+}
+
+static void give_PWM (void)
+{
+        // TIMER outputs: they drive the gates.
+        // GPIOA Configuration: Channel 1 to 3 as alternate function push-pull
+        palSetPadMode(GPIOA, 8, PAL_MODE_ALTERNATE(GPIO_AF_TIM1) |
+                        PAL_STM32_OSPEED_HIGHEST |
+                        PAL_STM32_PUDR_FLOATING);
+        palSetPadMode(GPIOA, 9, PAL_MODE_ALTERNATE(GPIO_AF_TIM1) |
+                        PAL_STM32_OSPEED_HIGHEST |
+                        PAL_STM32_PUDR_FLOATING);
+        palSetPadMode(GPIOA, 10, PAL_MODE_ALTERNATE(GPIO_AF_TIM1) |
+                        PAL_STM32_OSPEED_HIGHEST |
+                        PAL_STM32_PUDR_FLOATING);
+
+        palSetPadMode(GPIOB, 13, PAL_MODE_ALTERNATE(GPIO_AF_TIM1) |
+                        PAL_STM32_OSPEED_HIGHEST |
+                        PAL_STM32_PUDR_FLOATING);
+        palSetPadMode(GPIOB, 14, PAL_MODE_ALTERNATE(GPIO_AF_TIM1) |
+                        PAL_STM32_OSPEED_HIGHEST |
+                        PAL_STM32_PUDR_FLOATING);
+        palSetPadMode(GPIOB, 15, PAL_MODE_ALTERNATE(GPIO_AF_TIM1) |
+                        PAL_STM32_OSPEED_HIGHEST |
+                        PAL_STM32_PUDR_FLOATING);
+}
+
+static void makelo (int n)
+{
+  palClearPad (GPIOA, 10-n);
+  chThdSleep (2);
+  palSetPad (GPIOB, 15-n);
+}
+
+
+static void delay_us (int i)
+{
+  i *= 168;
+  i /= 4;
+  while (i--)
+    __asm__ ("nop");
+}
+
+
+static void makehi (int n, int t)
+{
+  int i;
+#define STEP 1
+  palClearPad (GPIOB, 15-n);
+  chThdSleep (2);
+
+  for (i=0;i<t;i+=STEP) {
+    palSetPad (GPIOA, 10-n);
+    chThdSleepMilliseconds (STEP);
+    palClearPad (GPIOA, 10-n);
+
+    delay_us (1);
+    palSetPad (GPIOB, 15-n);
+    delay_us (1);
+    palClearPad (GPIOB, 15-n);
+    delay_us (1);
+  }
+}
 
 
 void terminal_process_string(char *str) {
@@ -289,7 +366,8 @@ void terminal_process_string(char *str) {
 		if (*p == 'P') p++;	
 		if ( (*p >= 'a') && (*p <= 'h')  ) 
 			gp = (stm32_gpio_t *) ((char *)GPIOA + (*p - 'a')*0x400);
-		pin = atoi (p+1);
+		//pin = atoi (p+1);
+                sscanf (p+1, "%d", &pin);
 		palSetPadMode (gp, pin, PAL_MODE_OUTPUT_PUSHPULL);
 		palClearPad (gp, pin);
 		commands_printf ("toggling GPIO: = %x / %d: P%c%d \n", (int)gp, pin, *p, pin );
@@ -402,15 +480,106 @@ void terminal_process_string(char *str) {
 			commands_printf("This command requires one argument.\n");
 		}
 
+	} else if (strcmp(argv[0], "debug_analog") == 0) {
+		int i;
+		commands_printf ("gain: %f ",  (double) CURRENT_AMP_GAIN);
+		for (i=0;i<10;i++) {
+			commands_printf ("%d %d %d %d  %d %d %d %d  %d %d %d %d  %d %d %d ", 
+				ADC_Value[0], ADC_Value[1], ADC_Value[2], ADC_Value[3], 
+				ADC_Value[4], ADC_Value[5], ADC_Value[6], ADC_Value[7], 
+				ADC_Value[8], ADC_Value[9], ADC_Value[10], ADC_Value[11], 
+				ADC_Value[12], ADC_Value[13], ADC_Value[14], ADC_Value[15]); 
+			
+                  chThdSleepMilliseconds (1000);
+                }
+
+	} else if (strcmp(argv[0], "offsets") == 0) {
+		if (argc > 2) {
+			//curr0_offset = atoi (argv[1]);
+			sscanf (argv[1], "%d", &curr0_offset);
+			//curr1_offset = atoi (argv[2]);
+			sscanf (argv[2], "%d", &curr1_offset);
+		}
+		commands_printf ("%d %d.", curr0_offset, curr1_offset );
+	} else if (strcmp(argv[0], "dc_cal") == 0) {
+		mcpwm_do_dc_cal ();
+		commands_printf ("%d %d.", curr0_offset, curr1_offset );
+	} else if (strcmp(argv[0], "debug_gpio") == 0) {
+	  int i,j, af, n; 
+	  char buf[128], buf2[10];
+	  stm32_gpio_t *gp;
+	  if (argc > 1) {
+		//n = atoi (argv[1]);
+ 	    sscanf (argv[1], "%d", &n);
+	  } else n = 3;
+	  for (i=0;i < n;i++) {
+	    gp = ((stm32_gpio_t *)(GPIOA_BASE + i * 0x400));
+	    commands_printf ("--- GPIO%c ---", 'A'+i);
+	    strcpy (buf, "inout: ");
+	    for (j=0;j<16;j++) {
+	      af = ((j<8)?gp->AFRL:gp->AFRH) >> ((j&7)*4) & 0xf;
+
+	      switch (gp->MODER >> (j*2) & 0x3) {
+	      case 0: strcat (buf, "in   ");break;
+	      case 1: strcat (buf, "out  ");break;
+	      case 2: 
+		sprintf (buf2, "AF%d  ", af);
+		strcat (buf, buf2);break;
+	      case 3: strcat (buf, "ana  ");break;
+	      }
+	    }
+	    commands_printf (buf);
+	    strcpy (buf, "i/odr: ");
+	    for (j=0;j<16;j++) {
+	      switch (gp->IDR >> (j) & 0x1) {
+	      case 0:strcat (buf, "0/");break;
+	      case 1:strcat (buf, "1/");break;
+	      }
+	      switch (gp->ODR >> (j) & 0x1) {
+	      case 0:strcat (buf, "0  ");break;
+	      case 1:strcat (buf, "1  ");break;
+	      }
+
+	    }
+	    commands_printf (buf);
+	  }
+	} else if (strcmp(argv[0], "hi") == 0) {
+ 		int p, t;
+		sscanf(argv[1], "%d", &p);
+                commands_printf("phase %d hi", p);
+		if (argc > 2) sscanf(argv[2], "%d", &t);
+		else t = 3;
+		steal_PWM ();
+		makehi (p, t*1000);
+		//chThdSleepMilliseconds (t*1000);
+		give_PWM ();
+                commands_printf("done");
+	} else if (strcmp(argv[0], "lo") == 0) {
+ 		int p, t;
+		sscanf(argv[1], "%d", &p);
+                commands_printf("phase %d lo", p);
+		if (argc > 2) sscanf(argv[2], "%d", &t);
+		else t = 3;
+		steal_PWM ();
+		makelo (p);
+		chThdSleepMilliseconds (t*1000);
+		give_PWM ();
+                commands_printf("done");
 	} else if (strcmp(argv[0], "show_hall") == 0) {
 		int i;
                 int oldhal = -1, hal;
+ 
+                commands_printf("showing hall");
                 for (i=0;i<10000;i++) {
                   hal = read_hall ();
-                  if (hal  != oldhal) commands_printf("%d %d %d", (hal & 1) >> 0, (hal&2)>>1, (hal&4)>>2 );
+                  if (hal  != oldhal) {
+			commands_printf("%d %d %d  (%d)", (hal & 1) >> 0, (hal&2)>>1, (hal&4)>>2 ,
+			palReadPad (GPIOB,6));
+                  }
                   oldhal = hal;
                   chThdSleepMilliseconds (1);
 		}
+                commands_printf("done");
 	} else if (strcmp(argv[0], "measure_ind") == 0) {
 		if (argc == 2) {
 			float duty = -1.0;

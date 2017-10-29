@@ -862,10 +862,22 @@ void mc_interface_fault_stop(mc_fault_code fault) {
 	m_fault_now = fault;
 }
 
+volatile int numISRcalls;
+
+volatile int last_time;
+volatile int fsw_dt;
+
 void mc_interface_mc_timer_isr(void) {
 	ledpwm_update_pwm(); // LED PWM Driver update
 
 	const float input_voltage = GET_INPUT_VOLTAGE();
+	const float f_sw = mc_interface_get_switching_frequency_now();
+	numISRcalls++;
+	if (numISRcalls > f_sw) {
+	    fsw_dt = chVTGetSystemTime() - last_time;
+	    last_time = chVTGetSystemTime();
+	    numISRcalls = 0;
+        }
 
 	// Check for faults that should stop the motor
 	static int wrong_voltage_iterations = 0;
@@ -918,7 +930,6 @@ void mc_interface_mc_timer_isr(void) {
 	}
 
 	// Watt and ah counters
-	const float f_sw = mc_interface_get_switching_frequency_now();
 	if (fabsf(current) > 1.0) {
 		// Some extra filtering
 		static float curr_diff_sum = 0.0;

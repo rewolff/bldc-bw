@@ -43,14 +43,14 @@ NOTE: The ESC_STM32 board is incorrectly silkscreened as STM32_ESC.
    H1                PA10          PA10
 
    ADC_EXT2          PB1           PB0
-   SERVO             PB5           PB9          *
+   SERVO             PB5           PB12          *
    HALL_1            PB6           PB6
    HALL_2            PB7           PB7
    CAN_RX            PB8           --
    CAN_TX            PB9           --
    RX_SCL            PB10          --
    TX_SDA            PB11          --
-   DC_CAL            PB12          PB12
+   DC_CAL            PB12          ---
    L3                PB13          PB13
    L2                PB14          PB14
    L1                PB15          PB15
@@ -62,8 +62,8 @@ NOTE: The ESC_STM32 board is incorrectly silkscreened as STM32_ESC.
    TX_SDA            PC6           PC6
    RX_SCL            PC7           PC7
    EN_GATE           PC10          PC10
-   HALL_3            PC11          PB8           *
-   FAULT             PC12          PC12 
+   HALL_3            PB8           PC11           *
+   FAULT             PC12          --- 
 
 
 */
@@ -85,6 +85,10 @@ void hw_init_gpio(void) {
 	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOB, ENABLE);
 	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOC, ENABLE);
 
+	// debug: TP12 on the board. 
+	palSetPadMode(GPIOC, 12,
+			PAL_MODE_OUTPUT_PUSHPULL |
+			PAL_STM32_OSPEED_HIGHEST);
 	// LEDs
 	palSetPadMode(GPIOC, 4,
 			PAL_MODE_OUTPUT_PUSHPULL |
@@ -93,6 +97,7 @@ void hw_init_gpio(void) {
 			PAL_MODE_OUTPUT_PUSHPULL |
 			PAL_STM32_OSPEED_HIGHEST);
 
+#if 0
 	// GPIOC (ENABLE_GATE)
 	palSetPadMode(GPIOC, 10,
 			PAL_MODE_OUTPUT_PUSHPULL |
@@ -103,7 +108,8 @@ void hw_init_gpio(void) {
 	palSetPadMode(GPIOB, 12,
 			PAL_MODE_OUTPUT_PUSHPULL |
 			PAL_STM32_OSPEED_HIGHEST);
-
+#endif
+	// TIMER outputs: they drive the gates. 
 	// GPIOA Configuration: Channel 1 to 3 as alternate function push-pull
 	palSetPadMode(GPIOA, 8, PAL_MODE_ALTERNATE(GPIO_AF_TIM1) |
 			PAL_STM32_OSPEED_HIGHEST |
@@ -130,14 +136,19 @@ void hw_init_gpio(void) {
 	palSetPadMode(HW_HALL_ENC_GPIO2, HW_HALL_ENC_PIN2, PAL_MODE_INPUT_PULLUP);
 	palSetPadMode(HW_HALL_ENC_GPIO3, HW_HALL_ENC_PIN3, PAL_MODE_INPUT_PULLUP);
 
+#if 0
 	// Fault pin
 	palSetPadMode(GPIOC, 12, PAL_MODE_INPUT_PULLUP);
+#endif
 
 	// ADC Pins
 	palSetPadMode(GPIOA, 0, PAL_MODE_INPUT_ANALOG);
 	palSetPadMode(GPIOA, 1, PAL_MODE_INPUT_ANALOG);
 	palSetPadMode(GPIOA, 2, PAL_MODE_INPUT_ANALOG);
 	palSetPadMode(GPIOA, 3, PAL_MODE_INPUT_ANALOG);
+// XXX PA3 is now broken. Use PC1 ADC-IN11. 
+	palSetPadMode(GPIOC, 1, PAL_MODE_INPUT_ANALOG);
+
 	palSetPadMode(GPIOA, 4, PAL_MODE_INPUT_ANALOG);
 	palSetPadMode(GPIOA, 5, PAL_MODE_INPUT_ANALOG);
 	palSetPadMode(GPIOA, 6, PAL_MODE_INPUT_ANALOG);
@@ -145,6 +156,7 @@ void hw_init_gpio(void) {
 	palSetPadMode(GPIOB, 0, PAL_MODE_INPUT_ANALOG);
 	palSetPadMode(GPIOB, 1, PAL_MODE_INPUT_ANALOG);
 
+// On current hardware none of these are connected. 
 	palSetPadMode(GPIOC, 0, PAL_MODE_INPUT_ANALOG);
 	palSetPadMode(GPIOC, 1, PAL_MODE_INPUT_ANALOG);
 	palSetPadMode(GPIOC, 2, PAL_MODE_INPUT_ANALOG);
@@ -153,23 +165,23 @@ void hw_init_gpio(void) {
 }
 
 void hw_setup_adc_channels(void) {
-	// ADC1 regular channels
-        ADC_RegularChannelConfig(ADC1, ADC_Channel_0, 1, ADC_SampleTime_15Cycles); // SENS3
-	ADC_RegularChannelConfig(ADC1, ADC_Channel_5, 2, ADC_SampleTime_15Cycles); // SO2 ISENSC
-	ADC_RegularChannelConfig(ADC1, ADC_Channel_Vrefint, 3, ADC_SampleTime_15Cycles); 
-	ADC_RegularChannelConfig(ADC1, ADC_Channel_6, 4, ADC_SampleTime_15Cycles); // ADC_TEMP
+	//  regular channels
+        ADC_RegularChannelConfig(ADC1, ADC_Channel_0, 1, ADC_SampleTime_15Cycles); // SENS3  // 0 
+	ADC_RegularChannelConfig(ADC2, ADC_Channel_1, 1, ADC_SampleTime_15Cycles); // SENS2  // 1
+	ADC_RegularChannelConfig(ADC3, ADC_Channel_2, 1, ADC_SampleTime_15Cycles);  // SENS1   //2 
 
-	// ADC2 regular channels
-	ADC_RegularChannelConfig(ADC2, ADC_Channel_1, 1, ADC_SampleTime_15Cycles); // SENS2
-	ADC_RegularChannelConfig(ADC2, ADC_Channel_4, 2, ADC_SampleTime_15Cycles); // SO1 ISENSA
-	ADC_RegularChannelConfig(ADC2, ADC_Channel_8, 3, ADC_SampleTime_15Cycles); // ADC_EXT2
-	ADC_RegularChannelConfig(ADC2, ADC_Channel_9, 4, ADC_SampleTime_15Cycles); // ADC_EXT
+	ADC_RegularChannelConfig(ADC1, ADC_Channel_5, 2, ADC_SampleTime_15Cycles); // SO2 ISENSC // 3
+	ADC_RegularChannelConfig(ADC2, ADC_Channel_4, 2, ADC_SampleTime_15Cycles); // SO1 ISENSA // 4
+	ADC_RegularChannelConfig(ADC3, ADC_Channel_11, 2, ADC_SampleTime_15Cycles);  // SENSBUS  // 5
 
-	// ADC3 regular channels
-	ADC_RegularChannelConfig(ADC3, ADC_Channel_2, 1, ADC_SampleTime_15Cycles);  // SENS1
-	ADC_RegularChannelConfig(ADC3, ADC_Channel_3, 2, ADC_SampleTime_15Cycles);  // NC. 
-	ADC_RegularChannelConfig(ADC3, ADC_Channel_12, 3, ADC_SampleTime_15Cycles); // AN_IN
-	ADC_RegularChannelConfig(ADC3, ADC_Channel_10, 4, ADC_SampleTime_15Cycles); // TEMP_MOTOR
+	ADC_RegularChannelConfig(ADC1, ADC_Channel_Vrefint, 3, ADC_SampleTime_15Cycles);   // 6
+	ADC_RegularChannelConfig(ADC2, ADC_Channel_8, 3, ADC_SampleTime_15Cycles); // ADC_EXT2   // 7
+	ADC_RegularChannelConfig(ADC3, ADC_Channel_12, 3, ADC_SampleTime_15Cycles); // AN_IN   // 8
+
+// XXX can't be right. 
+	ADC_RegularChannelConfig(ADC1, ADC_Channel_6, 4, ADC_SampleTime_15Cycles); // ADC_TEMP //9
+	ADC_RegularChannelConfig(ADC2, ADC_Channel_9, 4, ADC_SampleTime_15Cycles); // ADC_EXT    // 10
+	ADC_RegularChannelConfig(ADC3, ADC_Channel_10, 4, ADC_SampleTime_15Cycles); // TEMP_MOTOR // 11
 
 	// Injected channels
 	ADC_InjectedChannelConfig(ADC1, ADC_Channel_4, 1, ADC_SampleTime_15Cycles);  // SO1/ISENSA
@@ -182,6 +194,7 @@ void hw_setup_servo_outputs(void) {
 	// Set up GPIO ports
 	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOB, ENABLE);
 
+// XXX This is not valid: PB4/5 are SPI pins. 
 	// Set up servo structures
 	servos[0].gpio = GPIOB;
 	servos[0].pin = 5;

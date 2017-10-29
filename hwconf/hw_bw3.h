@@ -23,7 +23,7 @@
 #define DISABLE_GATE()			palClearPad(GPIOC, 10)
 #define DCCAL_ON()				palSetPad(GPIOB, 12)
 #define DCCAL_OFF()				palClearPad(GPIOB, 12)
-#define IS_DRV_FAULT()			(!palReadPad(GPIOC, 12))
+#define IS_DRV_FAULT()			(0) // No drv -> no faults.
 
 #define LED_GREEN_ON()				palSetPad(GPIOC, 4)
 #define LED_GREEN_OFF()				palClearPad(GPIOC, 4)
@@ -77,7 +77,7 @@
 //#define V_REG				3.3
 #endif
 #ifndef VIN_R1
-#define VIN_R1				39000.0
+#define VIN_R1				133000.0
 #endif
 #ifndef VIN_R2
 #define VIN_R2				2200.0
@@ -90,8 +90,12 @@
 // However, we resistor-divide the value by 10/(10+4.7) = 0.6803. 
 // so we claim the AMP_GAIN is 6.8 instead of 10. 
 
+// Latest news: Power the '758 with 3.3V and all your troubles are gone!
+// The sensitivity is specified as 10mV/A, but should read: 0.2%VCC / A. This
+// works out to 6.6mV/A nominally at 3.3V nominally. 
+
 #ifndef CURRENT_AMP_GAIN
-#define CURRENT_AMP_GAIN	6.803
+#define CURRENT_AMP_GAIN	6.6
 #endif
 #ifndef CURRENT_SHUNT_RES
 #define CURRENT_SHUNT_RES	0.001
