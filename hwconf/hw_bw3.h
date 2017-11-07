@@ -18,6 +18,8 @@
 #ifndef HW_BW3_H_
 #define HW_BW3_H_
 
+#define HW_NAME "bw3"
+
 // Macros
 #define ENABLE_GATE()			palSetPad(GPIOC, 10)
 #define DISABLE_GATE()			palClearPad(GPIOC, 10)
@@ -50,6 +52,7 @@
  */
 
 #define HW_ADC_CHANNELS				12
+#define HW_ADC_INJ_CHANNELS            2
 #define HW_ADC_NBR_CONV				4
 
 // ADC Indexes
@@ -61,13 +64,8 @@
 #define ADC_IND_VIN_SENS			5
 #define ADC_IND_EXT				10
 #define ADC_IND_EXT2				7
-#define ADC_IND_TEMP_MOS1			9
-#define ADC_IND_TEMP_MOS2			9
-#define ADC_IND_TEMP_MOS3			9
-#define ADC_IND_TEMP_MOS4			9
-#define ADC_IND_TEMP_MOS5			9
-#define ADC_IND_TEMP_MOS6			9
-#define ADC_IND_TEMP_PCB			9
+#define ADC_IND_TEMP_MOS			11
+#define ADC_IND_TEMP_MOTOR			9
 #define ADC_IND_VREFINT				6
 
 // ADC macros and settings
@@ -111,8 +109,10 @@
 //#define NTC_RES(adc_val)	(10000.0 / ((4096.0 / (float)adc_val) - 1.0))
 #define NTC_RES(adc_val)	((4095.0 * 10000.0) / adc_val - 10000.0)
 //#define NTC_TEMP(adc_ind)	 ((float)(ADC_Value[11])/10.0)
-#define NTC_TEMP(adc_ind)	 (((float)(ADC_Value[11]) * 3.3/4096.0 - 0.5)/0.010)
+#define NTC_TEMP(adc_ind)	 (((float)(ADC_Value[ADC_IND_TEMP_MOS]) * 3.3/4096.0 - 0.5)/0.010)
 //(1.0 / ((logf(NTC_RES(ADC_Value[adc_ind]) / 10000.0) / 3434.0) + (1.0 / 298.15)) - 273.15)
+
+#define NTC_TEMP_motor(adc_ind)	 (((float)(ADC_Value[ADC_IND_TEMP_MOTOR]) * 3.3/4096.0 - 0.5)/0.010)
 
 // Double samples in beginning and end for positive current measurement.
 // Useful when the shunt sense traces have noise that causes offset.
@@ -164,6 +164,9 @@
 #define HW_ENC_EXTI_CH			EXTI15_10_IRQn
 #define HW_ENC_EXTI_LINE		EXTI_Line11
 #define HW_ENC_EXTI_ISR_VEC		EXTI15_10_IRQHandler
+#define HW_ENC_TIM_ISR_CH               TIM4_IRQn
+#define HW_ENC_TIM_ISR_VEC              TIM4_IRQHandler
+
 
 // NRF pins
 #define NRF_PORT_CSN	GPIOB
@@ -192,6 +195,16 @@
 
 #undef MCPWM_DEAD_TIME_CYCLES 
 #define MCPWM_DEAD_TIME_CYCLES                  80              // Dead time
+
+// Setting limits
+#define HW_LIM_CURRENT                 -120.0, 120.0
+#define HW_LIM_CURRENT_IN              -100.0, 100.0
+#define HW_LIM_CURRENT_ABS             0.0, 180.0
+#define HW_LIM_VIN                             6.0, 190.0
+#define HW_LIM_ERPM                            -200e3, 200e3
+#define HW_LIM_DUTY_MIN                        0.0, 0.1
+#define HW_LIM_DUTY_MAX                        0.0, 0.95
+#define HW_LIM_TEMP_FET                        -60.0, 100.0
 
 
 #endif /* HW_BW_H_ */
