@@ -974,7 +974,6 @@ void terminal_process_string(char *str) {
 
 		commands_printf("drv8301_reset_faults");
 		commands_printf("  Reset all latched DRV8301 faults.");
-#endif
 
 #ifdef HW_HAS_DRV8305
 		commands_printf("drv8305_read_reg [reg]");
@@ -1002,7 +1001,6 @@ void terminal_process_string(char *str) {
 		}
 
 		commands_printf(" ");
->>>>>>> 9e23e1773627f9603e7686df2ac7cfc1939f888c
 	} else {
 		bool found = false;
 		for (int i = 0;i < callback_write;i++) {
