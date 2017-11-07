@@ -227,7 +227,7 @@ char *fc_to_string (mc_fault_code fault)
   case FAULT_CODE_NONE: return "NONE"; break;
   case FAULT_CODE_OVER_VOLTAGE: return "Vin high"; break;
   case FAULT_CODE_UNDER_VOLTAGE: return "Vin low"; break;
-  case FAULT_CODE_DRV8302: return "DRV"; break;
+  case FAULT_CODE_DRV: return "DRV"; break;
   case FAULT_CODE_ABS_OVER_CURRENT: return "ABS I hi"; break;
   case FAULT_CODE_OVER_TEMP_FET: return "FET hot"; break;
   case FAULT_CODE_OVER_TEMP_MOTOR: return "mot hot"; break;

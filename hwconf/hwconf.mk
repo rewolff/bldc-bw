@@ -8,6 +8,13 @@ HWSRC =	hwconf/hw_40.c \
 	hwconf/hw_bw2.c \
 	hwconf/hw_bw3.c \
 	hwconf/hw_410.c \
-	hwconf/hw_victor_r1a.c
+	hwconf/hw_60.c \
+	hwconf/hw_victor_r1a.c \
+	hwconf/hw_das_rs.c \
+	hwconf/drv8301.c \
+	hwconf/drv8305.c \
+	hwconf/hw_palta.c \
+	hwconf/hw_rh.c \
+	hwconf/hw_tp.c
 
 HWINC = hwconf
