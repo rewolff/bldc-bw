@@ -172,7 +172,7 @@ void hw_setup_adc_channels(void) {
 
 	ADC_RegularChannelConfig(ADC1, ADC_Channel_5, 2, ADC_SampleTime_15Cycles); // SO2 ISENSC // 3
 	ADC_RegularChannelConfig(ADC2, ADC_Channel_4, 2, ADC_SampleTime_15Cycles); // SO1 ISENSA // 4
-	ADC_RegularChannelConfig(ADC3, ADC_Channel_11, 2, ADC_SampleTime_15Cycles);  // SENSBUS  // 5
+	ADC_RegularChannelConfig(ADC3, ADC_Channel_3, 2, ADC_SampleTime_15Cycles);  // SENSBUS  // 5
 
 	ADC_RegularChannelConfig(ADC1, ADC_Channel_Vrefint, 3, ADC_SampleTime_15Cycles);   // 6
 	ADC_RegularChannelConfig(ADC2, ADC_Channel_8, 3, ADC_SampleTime_15Cycles); // ADC_EXT2   // 7

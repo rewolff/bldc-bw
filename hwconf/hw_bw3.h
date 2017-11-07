@@ -40,7 +40,7 @@
  * 2:	IN2		SENS1
  * 3:	IN5		CURR2
  * 4:	IN6		CURR1
- * 5:	IN3		NC
+ * 5:	IN3		VBUS
  * 6:	Vrefint
  * 7:	IN8		ADC_EXT2
  * 8:	IN12	AN_IN

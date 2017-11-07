@@ -543,6 +543,12 @@ void terminal_process_string(char *str) {
 	    }
 	    commands_printf (buf);
 	  }
+	} else if (strcmp(argv[0], "hiall") == 0) {
+	 	int p;
+		steal_PWM ();
+		for (p=0;p<3;p++) makehi (p, 1000);
+		give_PWM ();
+                commands_printf("done");
 	} else if (strcmp(argv[0], "hi") == 0) {
  		int p, t;
 		sscanf(argv[1], "%d", &p);
@@ -762,6 +768,8 @@ void terminal_process_string(char *str) {
 
 		commands_printf("foc_state");
 		commands_printf("  Print some FOC state variables.\n");
+		commands_printf("hi / lo");
+		commands_printf("  rew debug commands");
 	} else {
 		commands_printf("Invalid command: %s\n"
 				"type help to list all available commands\n", argv[0]);
