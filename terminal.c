@@ -591,17 +591,30 @@ void terminal_process_string(char *str) {
 	} else if (strcmp(argv[0], "show_hall") == 0) {
 		int i;
                 int oldhal = -1, hal;
+                int hv[8];
+                char buf[100];
+		static int trans[8] = {0,1,5,6, 3,2,4,0};
  
+                for (i=0;i<8;i++) hv[i] = 0; 
                 commands_printf("showing hall");
                 for (i=0;i<10000;i++) {
                   hal = read_hall ();
                   if (hal  != oldhal) {
-			commands_printf("%d %d %d  (%d)", (hal & 1) >> 0, (hal&2)>>1, (hal&4)>>2 ,
-			palReadPad (GPIOB,6));
+			commands_printf("%d %d %d  (%d/%d)", 
+                        (hal & 1) >> 0, (hal&2)>>1, (hal&4)>>2 ,
+			hal, trans[hal]); 
+			hv[hal]++;
                   }
                   oldhal = hal;
                   chThdSleepMilliseconds (1);
 		}
+                buf[0] = 0;
+                for (i=0;i<8;i++) sprintf (buf+strlen(buf), "%4d ", i);
+                commands_printf(buf);
+                buf[0] = 0;
+                for (i=0;i<8;i++) sprintf (buf+strlen(buf), "%4d ", hv[i]);
+                commands_printf(buf);
+                
                 commands_printf("done");
 	} else if (strcmp(argv[0], "measure_ind") == 0) {
 		if (argc == 2) {

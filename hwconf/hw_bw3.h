@@ -20,6 +20,13 @@
 
 #define HW_NAME "bw3"
 
+#if 0
+#define HW_HAS_3_SHUNTS
+#endif
+#define HW_HAS_REW3_SHUNTS
+#define HW_HAS_PHASE_SHUNTS
+
+
 // Macros
 #define ENABLE_GATE()			palSetPad(GPIOC, 10)
 #define DISABLE_GATE()			palClearPad(GPIOC, 10)
@@ -42,9 +49,9 @@
  * 2:	IN2		SENS1
  * 3:	IN5		CURR2
  * 4:	IN6		CURR1
- * 5:	IN3		VBUS
+ * 5:	IN6		ADC_EXT2
  * 6:	Vrefint
- * 7:	IN8		ADC_EXT2
+ * 7:	IN3		VBUS
  * 8:	IN12	AN_IN
  * 9:	IN4		TEMP_MOSFET
  * 10:	IN9	ADC_EXT
@@ -61,9 +68,10 @@
 #define ADC_IND_SENS3				0
 #define ADC_IND_CURR1				4
 #define ADC_IND_CURR2				3
-#define ADC_IND_VIN_SENS			5
+#define ADC_IND_CURR3				5
+#define ADC_IND_VIN_SENS			7
 #define ADC_IND_EXT				10
-#define ADC_IND_EXT2				7
+//#define ADC_IND_EXT2				7
 #define ADC_IND_TEMP_MOS			11
 #define ADC_IND_TEMP_MOTOR			9
 #define ADC_IND_VREFINT				6
@@ -121,6 +129,9 @@
 #endif
 #ifndef CURR2_DOUBLE_SAMPLE
 #define CURR2_DOUBLE_SAMPLE	0
+#endif
+#ifndef CURR3_DOUBLE_SAMPLE
+#define CURR3_DOUBLE_SAMPLE	0
 #endif
 
 // Number of servo outputs
@@ -195,6 +206,8 @@
 
 #undef MCPWM_DEAD_TIME_CYCLES 
 #define MCPWM_DEAD_TIME_CYCLES                  80              // Dead time
+
+#define HW_DEAD_TIME_VALUE 	120
 
 // Setting limits
 #define HW_LIM_CURRENT                 -120.0, 120.0
