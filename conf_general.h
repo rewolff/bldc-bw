@@ -92,7 +92,7 @@
 /*
  * Set APP_CUSTOM_TO_USE to the name of the main C file of the custom application.
  */
-#define APP_CUSTOM_TO_USE			"app_lcd.c"
+#define APP_CUSTOM_TO_USE			"app_rew.c"
 
 /*
  * Enable CAN-bus
