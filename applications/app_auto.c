@@ -418,12 +418,6 @@ static THD_FUNCTION(packet_process_thread, arg)
     }
 #endif
 
-    //    rpm = mc_interface_get_rpm() / 7;
-    //sprintf (buf, "rpm: %.0f", rpm);
-    //setreg8 (0x10, 0);
-    //chThdSleepMilliseconds(10);
-    //print_text (buf, strlen (buf));
-
     dc       = mc_interface_get_duty_cycle_now();
 
     rpmtot  += mc_interface_get_rpm();
@@ -441,13 +435,16 @@ static THD_FUNCTION(packet_process_thread, arg)
       sprintf (&display[1][12], "thr: %.0f ", (double) (99 * app_adc_get_decoded_level()) );
 
 
+      // 3rd line: left side: battery and motor current
       sprintf (&display[2][0], "I: %.1f/%.1lf", 
 	       (double) mc_interface_read_reset_avg_input_current (), 
 	       (double) mc_interface_read_reset_avg_motor_current ());
 
+      // 3rd line: right side: energy consumed. 
       sprintf (&display[2][14], "%.0fkJ", 
 		(double) 3.6*(double) mc_interface_get_watt_hours(0) );
 
+      // bottom left: power. 
       sprintf (&display[3][0], "P: %.0f", (double) (ic * vintot / INTTIME));
 
       // bottom line: temp/fault. 
