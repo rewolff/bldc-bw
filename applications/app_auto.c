@@ -68,27 +68,36 @@ char olddisplay[NLINES][24];
 int addr = 0x94;
 
 
+#if 0
 
 // Settings
 #define BAUDRATE					115200
 #define PACKET_HANDLER				1
 #define SERIAL_RX_BUFFER_SIZE		1024
 
+#endif
 // Threads
 static THD_FUNCTION(packet_process_thread, arg);
 static THD_WORKING_AREA(packet_process_thread_wa, 4096);
+
+static volatile bool is_running = false;
+
+
+#if 0
 static thread_t *process_tp = 0;
+
 
 // Variables
 static uint8_t serial_rx_buffer[SERIAL_RX_BUFFER_SIZE];
 static int serial_rx_read_pos = 0;
 static int serial_rx_write_pos = 0;
-static volatile bool is_running = false;
 
 // Private functions
 static void process_packet(unsigned char *data, unsigned int len);
 static void send_packet_wrapper(unsigned char *data, unsigned int len);
 static void send_packet(unsigned char *data, unsigned int len);
+
+#endif
 
 
 void delay_us (int n)
@@ -172,7 +181,7 @@ int getreg8 (int reg)
 }
 
 
-
+#if 0
 
 /*
  * This callback is invoked when a transmission buffer has been completely
@@ -197,6 +206,8 @@ static void rxerr(UARTDriver *uartp, uartflags_t e) {
 	(void)uartp;
 	(void)e;
 }
+
+
 
 /*
  * This callback is invoked when a character is received but the application
@@ -264,6 +275,7 @@ static void send_packet(unsigned char *data, unsigned int len)
   uartStartSend(&HW_UART_DEV, len, buffer);
 }
 
+#endif
 
 
 void update_lcd (void)
@@ -374,11 +386,7 @@ void app_custom_stop(void)
 
 void app_custom_configure(app_configuration *conf) 
 {
-  uart_cfg.speed = (int)conf;
-
-  if (is_running) {
-    uartStart(&HW_UART_DEV, &uart_cfg);
-  }
+  (void) conf;
 }
 
 
@@ -387,7 +395,7 @@ static THD_FUNCTION(packet_process_thread, arg)
 { 
   (void)arg;
   //  float rpm;
-  float ptot, rpmtot, dutytot, vintot, curtot, batcurtot;
+  float rpmtot, dutytot, vintot;
   float dc, ic;
   int t;
   mc_fault_code fc;
@@ -395,11 +403,11 @@ static THD_FUNCTION(packet_process_thread, arg)
   is_running = true;
   chRegSetThreadName("APP_LCD");
   t=0;
-  ptot = rpmtot = dutytot = vintot = curtot = batcurtot = 0;
+  rpmtot = dutytot = vintot = 0;
   palSetPadMode (GPIOB, 2, PAL_MODE_OUTPUT_PUSHPULL);
   for(;;) {
 
-    if (t <99) t++;
+    if (t < 99) t++;
     else t=0;
     chThdSleepMilliseconds (10);
 
@@ -416,84 +424,51 @@ static THD_FUNCTION(packet_process_thread, arg)
     //chThdSleepMilliseconds(10);
     //print_text (buf, strlen (buf));
 
-    ptot    += GET_INPUT_VOLTAGE() * mc_interface_get_duty_cycle_now () * mc_interface_get_tot_current();
-    rpmtot  += mc_interface_get_rpm();
     dc       = mc_interface_get_duty_cycle_now();
+
+    rpmtot  += mc_interface_get_rpm();
     dutytot += dc;
     vintot  += GET_INPUT_VOLTAGE();
-    curtot  += mc_interface_get_tot_current();
-
-    //    if (dc) 
-    batcurtot += mc_interface_get_tot_current() * dc;
-    fc = mc_interface_get_fault ();
 
     if ((t==0) || (t == 50)) {
 #define INTTIME (50.0 )
-      sprintf (&display[0][0], "%.1fkm/h", (double) (rpmtot/500.0/INTTIME));
+      //sprintf (&display[0][0], "%.1fkm/h", (double) (rpmtot/500.0/INTTIME));
+      sprintf (&display[0][0], "%.0fRPM", (double) (rpmtot/6/INTTIME));
 
       sprintf (&display[0][12], "duty:%.0f", (double) (dutytot*100.0/INTTIME));
       sprintf (&display[1][0], "vin: %.2f ", (double) (vintot / INTTIME));
 
       sprintf (&display[1][12], "thr: %.0f ", (double) (99 * app_adc_get_decoded_level()) );
-      // app_adc_get_decoded_level() 
-      // app_adc_get_voltage ()
 
 
-      ic = mc_interface_read_reset_avg_input_current (), 
-      sprintf (&display[2][0], "I: %.1f/%.1lf", (double) ic, 
- 	(double) mc_interface_read_reset_avg_motor_current ());
+      sprintf (&display[2][0], "I: %.1f/%.1lf", 
+	       (double) mc_interface_read_reset_avg_input_current (), 
+	       (double) mc_interface_read_reset_avg_motor_current ());
 
       sprintf (&display[2][14], "%.0fkJ", 
 		(double) 3.6*(double) mc_interface_get_watt_hours(0) );
 
       sprintf (&display[3][0], "P: %.0f", (double) (ic * vintot / INTTIME));
-#if 0
-      sprintf (&display[3][8], "flt: %s", fc_to_string (fc));
-#else
+
+      // bottom line: temp/fault. 
+      fc = mc_interface_get_fault ();
       if (fc == FAULT_CODE_NONE) {
-	sprintf (&display[3][8], "t: %.0f (%d)", (double) ((((float)(ADC_Value[11]) * 3.3/4096.0 - 0.5)/0.010)), ADC_Value[11]);
-//	sprintf (&display[3][8], "t: %d", ADC_Value[11] );
-      } else
+	sprintf (&display[3][8], "t: %.0fC", 
+		 (double) ((((float)(ADC_Value[11]) * 3.3/4096.0 - 0.5)/0.010)));
+      } else {
 	sprintf (&display[3][8], "flt: %s", fc_to_string (fc));
+      }
 
-#endif
-
+      // status, "we're running" led. 
       palTogglePad (GPIOB, 2);
-      ptot = rpmtot = dutytot = vintot = curtot = batcurtot = 0;
+      rpmtot = dutytot = vintot = 0;
     }
 
-    // Run this loop at 10Hz
+    // Run this loop at 100Hz
     update_lcd ();
-    //    chThdSleepMilliseconds(500);
 
     // Reset the timeout
-    timeout_reset();
+    //   timeout_reset();
   }
-#if 0
-  (void)arg;
-  
-  chRegSetThreadName("custom process");
-  
-  //  process_tp = chThdGetSelfX();
-  palSetPadMode (GPIOB, 2, PAL_MODE_OUTPUT_PUSHPULL);
-
-  for(;;) {
-#if 0
-    chEvtWaitAny((eventmask_t) 1);
-
-    while (serial_rx_read_pos != serial_rx_write_pos) {
-      packet_process_byte(serial_rx_buffer[serial_rx_read_pos++], PACKET_HANDLER);
-
-      if (serial_rx_read_pos == SERIAL_RX_BUFFER_SIZE) {
-	serial_rx_read_pos = 0;
-      }
-    }
-#endif
-
-    chThdSleepMilliseconds (200);
-    palTogglePad (GPIOB, 2);
-
-  }
-#endif
 
 }
