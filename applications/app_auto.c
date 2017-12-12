@@ -434,10 +434,10 @@ static THD_FUNCTION(packet_process_thread, arg)
 
       sprintf (&display[1][12], "thr: %.0f ", (double) (99 * app_adc_get_decoded_level()) );
 
-
+      ic =  mc_interface_read_reset_avg_input_current ();
       // 3rd line: left side: battery and motor current
       sprintf (&display[2][0], "I: %.1f/%.1lf", 
-	       (double) mc_interface_read_reset_avg_input_current (), 
+	       (double) ic,
 	       (double) mc_interface_read_reset_avg_motor_current ());
 
       // 3rd line: right side: energy consumed. 
