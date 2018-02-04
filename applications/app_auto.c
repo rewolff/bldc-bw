@@ -181,102 +181,6 @@ int getreg8 (int reg)
 }
 
 
-#if 0
-
-/*
- * This callback is invoked when a transmission buffer has been completely
- * read by the driver.
- */
-static void txend1(UARTDriver *uartp) {
-	(void)uartp;
-}
-
-/*
- * This callback is invoked when a transmission has physically completed.
- */
-static void txend2(UARTDriver *uartp) {
-	(void)uartp;
-}
-
-/*
- * This callback is invoked on a receive error, the errors mask is passed
- * as parameter.
- */
-static void rxerr(UARTDriver *uartp, uartflags_t e) {
-	(void)uartp;
-	(void)e;
-}
-
-
-
-/*
- * This callback is invoked when a character is received but the application
- * was not ready to receive it, the character is passed as parameter.
- */
-static void rxchar(UARTDriver *uartp, uint16_t c) 
-{
-  (void)uartp;
-  serial_rx_buffer[serial_rx_write_pos++] = c;
-
-  if (serial_rx_write_pos == SERIAL_RX_BUFFER_SIZE) {
-    serial_rx_write_pos = 0;
-  }
-
-  chSysLockFromISR();
-  chEvtSignalI(process_tp, (eventmask_t) 1);
-  chSysUnlockFromISR();
-}
-
-/*
- * This callback is invoked when a receive buffer has been completely written.
- */
-static void rxend(UARTDriver *uartp) {
-	(void)uartp;
-}
-
-/*
- * UART driver configuration structure.
- */
-static UARTConfig uart_cfg = {
-		txend1,
-		txend2,
-		rxend,
-		rxchar,
-		rxerr,
-		BAUDRATE,
-		0,
-		USART_CR2_LINEN,
-		0
-};
-
-static void process_packet(unsigned char *data, unsigned int len) 
-{
-  commands_set_send_func(send_packet_wrapper);
-  commands_process_packet(data, len);
-}
-
-static void send_packet_wrapper(unsigned char *data, unsigned int len) 
-{
-  packet_send_packet(data, len, PACKET_HANDLER);
-}
-
-static void send_packet(unsigned char *data, unsigned int len) 
-{
-  // Wait for the previous transmission to finish.
-  while (HW_UART_DEV.txstate == UART_TX_ACTIVE) {
-    chThdSleep(1);
-  }
-
-  // Copy this data to a new buffer in case the provided one is re-used
-  // after this function returns.
-  static uint8_t buffer[PACKET_MAX_PL_LEN + 5];
-  memcpy(buffer, data, len);
-
-  uartStartSend(&HW_UART_DEV, len, buffer);
-}
-
-#endif
-
 
 void update_lcd (void)
 {
@@ -379,6 +283,7 @@ char *fc_to_string (mc_fault_code fault)
 
 void app_custom_stop(void) 
 {
+  // XXX we can stop the thread. 
 
   // Notice that the processing thread is kept running in case this call is made from it.
 }
@@ -390,12 +295,157 @@ void app_custom_configure(app_configuration *conf)
 }
 
 
+void set_relay (int val)
+{
+  char sbuf[8];
+
+  sbuf[0] = 0x7e;  // The address.
+  sbuf[1] = 10;    // CMD_SETPWM
+  sbuf[2] = 0;     // relay number
+  sbuf[3] = val >> 8; // the value
+  sbuf[4] = val & 0xff;
+  spitx (sbuf, 5);
+}
+
+
+#define ERPM_PER_RPM 6
+
+#define DEBUG_CHG
+
+#ifdef DEBUG_CHG
+struct dbg {
+  int rpm, vin, cur;
+};
+
+struct dbg dbg_log[1000];
+int dbg_head;
+
+#endif
+
+
+
+// For testing: 433 is reached on 30V. 
+#define MAXRPM 433
+#define CHARGE_RAMP_START_RPM 310
+#define CHARGE_RAMP_STOP_RPM 350
+
+#define CHARGE_MOTORCURRENT -1.0
+#define CHARGE_VOLTAGE_RAMP_START 42.0
+#define CHARGE_VOLTAGE_RAMP_STOP  44.0
+
+
+#define MAXERPM                (MAXRPM*ERPM_PER_RPM)
+#define CHARGE_RAMP_START_ERPM (CHARGE_RAMP_START_RPM*ERPM_PER_RPM)
+#define CHARGE_RAMP_STOP_ERPM  (CHARGE_RAMP_STOP_RPM *ERPM_PER_RPM)
+
+
+typedef enum {CHGSTATE_OFF, CHGSTATE_CHARGE} ChargeState;
+
+
+//typedef enum {RELSTAT_OFF, RELSTAT_WAIT, RELSTAT_ON} RelayStatus;
+RelayStatus relay_state;
+ChargeState charge_state;
+
+void handle_relay (float rpm)
+{
+  static int nhi, nlo;
+
+  if (rpm > MAXERPM) {
+    nhi++;
+    nlo = 0;
+    if (nhi == 3) { // 30 ms
+      mc_interface_set_current (0.0); // Should happen immediately. 
+      set_relay (0); // this will take some time. 
+      relay_state = RELSTAT_OFF;
+    }
+  } else {
+    nlo++;
+    nhi = 0;
+    if (nlo == 500) { // 5 seconds. 
+      set_relay (2000); // this will take some time.
+      relay_state = RELSTAT_WAIT; // First "powertime": full blast. 
+    }
+    if (nlo == 600) { // 6 seconds.
+      set_relay (500); // this will take some time.
+      relay_state = RELSTAT_ON;
+    }
+  }
+}
+
+
+
+void handle_charging (float rpm, float vin)
+{
+  float chg_perc;
+
+#ifdef DEBUG_CHG
+  if (++dbg_head >= 1000) dbg_head = 0;
+
+  dbg_log[dbg_head].rpm = rpm;
+  dbg_log[dbg_head].vin = vin*1000;
+  dbg_log[dbg_head].cur = -555;
+#endif
+
+  if (overall_state == STATE_ELEKTRISCH_RIJDEN) {
+    charge_state = CHGSTATE_OFF;
+    return;
+  }
+
+  // We can't charge if the relays are not on. 
+  if (relay_state != RELSTAT_ON) {
+    charge_state = CHGSTATE_OFF;
+    return;
+  }
+
+  // RPM is too low to charge. or battery is full. 
+  if ((rpm < CHARGE_RAMP_START_ERPM) ||
+      (vin > CHARGE_VOLTAGE_RAMP_STOP)) {
+
+    // if necessary stop charging. 
+    if (charge_state == CHGSTATE_CHARGE) {
+#ifdef DEBUG_CHG
+      dbg_log[dbg_head].cur = 0;
+#endif
+      mc_interface_set_current (0.0);
+      charge_state = CHGSTATE_OFF;
+    }
+    return;
+  }
+
+  // charging current ramps up from 0 to max from 
+  // CHARGE_RAMP_START_ERPM to CHARGE_RAMP_STOP_ERPM . 
+  // (This means you won't feel the charge suddenly 
+  //  starting once you pass the threshold RPM).
+
+  if (rpm > CHARGE_RAMP_STOP_ERPM) {
+    chg_perc = 1.0;
+  } else {
+    chg_perc = (rpm - CHARGE_RAMP_START_ERPM) / 
+      (CHARGE_RAMP_STOP_ERPM - CHARGE_RAMP_START_ERPM);
+  }
+
+  // charging current ramps back down from 100% to 0 from
+  // CHARGE_VOLTAGE_RAMP_START to CHARGE_VOLTAGE_RAMP_STOP
+
+  if (vin > CHARGE_VOLTAGE_RAMP_START) {
+    chg_perc *= (vin - CHARGE_VOLTAGE_RAMP_START) / 
+      (CHARGE_VOLTAGE_RAMP_STOP - CHARGE_VOLTAGE_RAMP_START);
+  }
+
+#ifdef DEBUG_CHG
+  dbg_log[dbg_head].cur = 1000 * (chg_perc * CHARGE_MOTORCURRENT);
+#endif
+  mc_interface_set_current (chg_perc * CHARGE_MOTORCURRENT);
+  charge_state = CHGSTATE_CHARGE;
+}
+
+
 
 static THD_FUNCTION(packet_process_thread, arg) 
 { 
   (void)arg;
   //  float rpm;
-  float rpmtot, dutytot, vintot;
+  float rpmtot, dutytot, vintot, currpm, vin;
   float dc, ic;
   int t;
   mc_fault_code fc;
@@ -418,11 +468,17 @@ static THD_FUNCTION(packet_process_thread, arg)
     }
 #endif
 
-    dc       = mc_interface_get_duty_cycle_now();
+    currpm   = mc_interface_get_rpm();
+    rpmtot  += currpm; 
 
-    rpmtot  += mc_interface_get_rpm();
+    dc       = mc_interface_get_duty_cycle_now();
     dutytot += dc;
-    vintot  += GET_INPUT_VOLTAGE();
+
+    vin      = GET_INPUT_VOLTAGE();
+    vintot  += vin;
+
+    handle_relay (currpm);
+    handle_charging (currpm, vin);
 
     if ((t==0) || (t == 50)) {
 #define INTTIME (50.0 )
@@ -455,6 +511,7 @@ static THD_FUNCTION(packet_process_thread, arg)
       } else {
 	sprintf (&display[3][8], "flt: %s", fc_to_string (fc));
       }
+
 
       // status, "we're running" led. 
       palTogglePad (GPIOB, 2);

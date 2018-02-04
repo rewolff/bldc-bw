@@ -36,6 +36,7 @@
 #include <math.h>
 #include <string.h>
 #include <stdlib.h>
+#include "app.h"
 
 // Private types
 typedef struct {
@@ -2597,6 +2598,16 @@ static float correct_hall(float angle, float speed, float dt) {
 		}
 	}
 
+	// When decoupling the motor phases with relays, keep track of
+	// the RPM using the hall sensors. 
+
+#ifdef APP_CUSTOM_TO_USE
+#if APP_HAS_RELAY
+	if ( relay_state != RELSTAT_ON) 
+	  using_hall = 1;
+
+#endif
+#endif
 	if (using_hall) {
 		int ang_hall_int = m_conf->foc_hall_table[read_hall()];
 
