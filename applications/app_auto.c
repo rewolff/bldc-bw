@@ -31,11 +31,8 @@
 #include <stdio.h>
 
 
-
-
 #define LED_PORT GPIOB
 #define LED_PIN  2
-
 
 #define MYSPI SPID1
 
@@ -51,7 +48,7 @@
 
 
 /*
- * Low speed SPI configuration (140.625kHz, CPHA=0, CPOL=0, MSb first).
+ * SPI configuration (1.5MHz, CPHA=0, CPOL=0, MSb first).
  */
 static const SPIConfig ls_spicfg = {
   NULL,
@@ -68,14 +65,6 @@ char olddisplay[NLINES][24];
 int addr = 0x94;
 
 
-#if 0
-
-// Settings
-#define BAUDRATE					115200
-#define PACKET_HANDLER				1
-#define SERIAL_RX_BUFFER_SIZE		1024
-
-#endif
 // Threads
 static THD_FUNCTION(packet_process_thread, arg);
 static THD_WORKING_AREA(packet_process_thread_wa, 4096);
@@ -83,32 +72,13 @@ static THD_WORKING_AREA(packet_process_thread_wa, 4096);
 static volatile bool is_running = false;
 
 
-#if 0
-static thread_t *process_tp = 0;
-
-
-// Variables
-static uint8_t serial_rx_buffer[SERIAL_RX_BUFFER_SIZE];
-static int serial_rx_read_pos = 0;
-static int serial_rx_write_pos = 0;
-
-// Private functions
-static void process_packet(unsigned char *data, unsigned int len);
-static void send_packet_wrapper(unsigned char *data, unsigned int len);
-static void send_packet(unsigned char *data, unsigned int len);
-
-#endif
-
-
+// Busy wait for short periods. 
 void delay_us (int n)
 {
   n *= 36;
   while (n--) 
     __asm__("  nop\n");
-
 }
-
-
 
 
 int delay=15;
@@ -295,13 +265,13 @@ void app_custom_configure(app_configuration *conf)
 }
 
 
-void set_relay (int val)
+void set_relay (int relaynum, int val)
 {
   char sbuf[8];
 
-  sbuf[0] = 0x7e;  // The address.
-  sbuf[1] = 10;    // CMD_SETPWM
-  sbuf[2] = 0;     // relay number
+  sbuf[0] = 0x7e;     // The address.
+  sbuf[1] = 10;       // CMD_SETPWM
+  sbuf[2] = relaynum; // relay number
   sbuf[3] = val >> 8; // the value
   sbuf[4] = val & 0xff;
   spitx (sbuf, 5);
@@ -322,6 +292,15 @@ int dbg_head;
 
 #endif
 
+typedef enum { GS_STARTUP, GS_READY} GeneralState;
+typedef enum { R_MOTOR, R_PRECHARGE, R_MAINPOWER, R_12V} relay_indx;
+typedef enum { CHGSTATE_OFF, CHGSTATE_CHARGE} ChargeState;
+
+//typedef enum {RELSTAT_OFF, RELSTAT_WAIT, RELSTAT_ON} RelayStatus;
+
+GeneralState  general_state;
+RelayStatus relay_state;
+ChargeState charge_state;
 
 
 // For testing: 433 is reached on 30V. 
@@ -333,20 +312,13 @@ int dbg_head;
 #define CHARGE_VOLTAGE_RAMP_START 42.0
 #define CHARGE_VOLTAGE_RAMP_STOP  44.0
 
-
 #define MAXERPM                (MAXRPM*ERPM_PER_RPM)
 #define CHARGE_RAMP_START_ERPM (CHARGE_RAMP_START_RPM*ERPM_PER_RPM)
 #define CHARGE_RAMP_STOP_ERPM  (CHARGE_RAMP_STOP_RPM *ERPM_PER_RPM)
 
 
-typedef enum {CHGSTATE_OFF, CHGSTATE_CHARGE} ChargeState;
 
-
-//typedef enum {RELSTAT_OFF, RELSTAT_WAIT, RELSTAT_ON} RelayStatus;
-RelayStatus relay_state;
-ChargeState charge_state;
-
-void handle_relay (float rpm)
+void handle__motor_relay (float rpm)
 {
   static int nhi, nlo;
 
@@ -355,18 +327,18 @@ void handle_relay (float rpm)
     nlo = 0;
     if (nhi == 3) { // 30 ms
       mc_interface_set_current (0.0); // Should happen immediately. 
-      set_relay (0); // this will take some time. 
+      set_relay (R_MOTOR, 0); // this will take some time. 
       relay_state = RELSTAT_OFF;
     }
   } else {
     nlo++;
     nhi = 0;
     if (nlo == 500) { // 5 seconds. 
-      set_relay (2000); // this will take some time.
+      set_relay (R_MOTOR, 2000); // this will take some time.
       relay_state = RELSTAT_WAIT; // First "powertime": full blast. 
     }
     if (nlo == 600) { // 6 seconds.
-      set_relay (500); // this will take some time.
+      set_relay (R_MOTOR, 500); // this will take some time.
       relay_state = RELSTAT_ON;
     }
   }
@@ -440,6 +412,25 @@ void handle_charging (float rpm, float vin)
 }
 
 
+// 100  ticks per second.
+#define TIME_TO_TICK(tt) ((int)tt*100)
+
+
+static handle_startup ()
+{
+  static int t;
+
+  switch (t) {
+  case TIME_TO_TICK(0.1): set_relay (R_PRECHARGE, 2000);break;
+  case TIME_TO_TICK(2.1): set_relay (R_MAINPOWER, 2000);break;
+  case TIME_TO_TICK(2.6): set_relay (R_12V,       2000);break;
+  case TIME_TO_TICK(3.0): set_relay (R_PRECHARGE,    0);break;
+  case TIME_TO_TICK(3.1): set_relay (R_MAINPOWER,  500);break;
+  case TIME_TO_TICK(3.2): general_state = GS_READY;break;
+  }
+  t++;
+}
+
 
 static THD_FUNCTION(packet_process_thread, arg) 
 { 
@@ -452,8 +443,13 @@ static THD_FUNCTION(packet_process_thread, arg)
 
   is_running = true;
   chRegSetThreadName("APP_LCD");
+
   t=0;
   rpmtot = dutytot = vintot = 0;
+
+  general_state = GS_STARTUP;
+
+
   palSetPadMode (GPIOB, 2, PAL_MODE_OUTPUT_PUSHPULL);
   for(;;) {
 
@@ -477,8 +473,13 @@ static THD_FUNCTION(packet_process_thread, arg)
     vin      = GET_INPUT_VOLTAGE();
     vintot  += vin;
 
-    handle_relay (currpm);
-    handle_charging (currpm, vin);
+    if (general_state == GS_STARTUP) 
+      handle_startup ();
+    else {
+      handle_motor_relay (currpm);
+      handle_charging (currpm, vin);
+    }
+
 
     if ((t==0) || (t == 50)) {
 #define INTTIME (50.0 )

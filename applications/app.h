@@ -61,4 +61,5 @@ void app_custom_configure(app_configuration *conf);
 typedef enum {RELSTAT_OFF, RELSTAT_WAIT, RELSTAT_ON} RelayStatus;
 extern RelayStatus relay_state;
 
+
 #endif /* APP_H_ */
