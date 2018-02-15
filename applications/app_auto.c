@@ -36,6 +36,9 @@
 
 #define MYSPI SPID1
 
+#define AUTO_INTERFACE_SPI_ADDRESS 0x7e
+
+
 #if 0 
 // on STM32 CPU
 #define NCS_PORT GPIOB
@@ -54,7 +57,8 @@ static const SPIConfig ls_spicfg = {
   NULL,
   NCS_PORT,
   NCS_PIN,
-  SPI_CR1_BR_2|SPI_CR1_BR_1  // 1.5MHz. 
+  6 * SPI_CR1_BR_0  // pclk runs at 84MHz, this selects (84/2) /2^6 = 0.66Mhz
+//SPI_CR1_BR_2|SPI_CR1_BR_1  // 1.5MHz. 
 };
 
 
@@ -83,7 +87,7 @@ void delay_us (int n)
 
 int delay=15;
 
-void spitx (char *buf, int len)
+static void spitx (char *buf, int len)
 {
   int i; 
   spiSelect(&MYSPI);                  /* Slave Select assertion.          */
@@ -98,9 +102,12 @@ void spitx (char *buf, int len)
 }
 
 
-char debug_buf[0x10];
 
-void spitxrx (char *buf, int len)
+#ifdef DEBUG_SPITXRX
+char debug_buf[0x10];
+#endif
+
+static void spitxrx (char *buf, int len)
 {
   int i; 
   spiSelect(&MYSPI);                  /* Slave Select assertion.          */
@@ -111,8 +118,12 @@ void spitxrx (char *buf, int len)
   }
   delay_us (10);
    //    spiExchange(&SPID2, 1, buf+i, buf+i);          /* Atomic transfer operations.      */
+
+#ifdef DEBUG_SPITXRX
   memcpy (debug_buf+1, buf, len);
   debug_buf[0] = len;
+#endif
+
   spiUnselect(&MYSPI);           
 }
 
@@ -233,8 +244,6 @@ void app_custom_start(void)
 }
 
 
-
-
 char *fc_to_string (mc_fault_code fault) 
 {
   switch (fault) {
@@ -248,7 +257,6 @@ char *fc_to_string (mc_fault_code fault)
   default: return "???"; break;
   }
 }
-
 
 
 void app_custom_stop(void) 
@@ -269,7 +277,7 @@ void set_relay (int relaynum, int val)
 {
   char sbuf[8];
 
-  sbuf[0] = 0x7e;     // The address.
+  sbuf[0] = AUTO_INTERFACE_SPI_ADDRESS;     // The address.
   sbuf[1] = 10;       // CMD_SETPWM
   sbuf[2] = relaynum; // relay number
   sbuf[3] = val >> 8; // the value
@@ -278,35 +286,67 @@ void set_relay (int relaynum, int val)
 }
 
 
-#define ERPM_PER_RPM 6
+enum dig_idx {I_DUMMY, I_START, I_ELEC};
 
-#define DEBUG_CHG
+unsigned char digin[8];
+unsigned int  ain[8];
+
+
+char sbuf[8];
+
+void get_inputs (int numanalog)
+{
+  int i;
+
+  (void) numanalog;
+  // XXX todo numanalog toevoegen. 
+
+  sbuf[0] = AUTO_INTERFACE_SPI_ADDRESS+1;     // The address + READ
+  sbuf[1] = 11;       // CMD_GET_INPUTS
+  //  for (i=2;i<8;i++) sbuf[i]=i+1;
+  spitxrx (sbuf, 7);
+
+  for (i=0;i<8;i++) 
+    digin[i] = (sbuf[2]>>i) & 1;
+  /*
+  digin[1] = (sbuf[2]>>1) & 1;
+  digin[2] = (sbuf[2]>>2) & 1;
+  digin[3] = (sbuf[2]>>3) & 1;
+  */
+  ain[0] = (sbuf[4] << 8) | sbuf[3];
+}
+
+
+
+//#define DEBUG_CHG
 
 #ifdef DEBUG_CHG
 struct dbg {
   int rpm, vin, cur;
 };
 
+
 struct dbg dbg_log[1000];
 int dbg_head;
 
 #endif
 
-typedef enum { GS_STARTUP, GS_READY} GeneralState;
+#define ERPM_PER_RPM 6
+typedef enum { GS_STARTUP, GS_READY, GS_ELEKTRISCH_RIJDEN, GS_STARTING} GeneralState;
 typedef enum { R_MOTOR, R_PRECHARGE, R_MAINPOWER, R_12V} relay_indx;
 typedef enum { CHGSTATE_OFF, CHGSTATE_CHARGE} ChargeState;
 
 //typedef enum {RELSTAT_OFF, RELSTAT_WAIT, RELSTAT_ON} RelayStatus;
 
-GeneralState  general_state;
+GeneralState general_state;
 RelayStatus relay_state;
 ChargeState charge_state;
 
 
 // For testing: 433 is reached on 30V. 
-#define MAXRPM 433
-#define CHARGE_RAMP_START_RPM 310
-#define CHARGE_RAMP_STOP_RPM 350
+#define MAXRPM 733
+#define CHARGE_RAMP_START_RPM (MAXRPM-70)//610
+#define CHARGE_RAMP_STOP_RPM  (MAXRPM-20) //650
 
 #define CHARGE_MOTORCURRENT -1.0
 #define CHARGE_VOLTAGE_RAMP_START 42.0
@@ -318,7 +358,7 @@ ChargeState charge_state;
 
 
 
-void handle__motor_relay (float rpm)
+void handle_motor_relay (float rpm)
 {
   static int nhi, nlo;
 
@@ -345,8 +385,7 @@ void handle__motor_relay (float rpm)
 }
 
 
-
-void handle_charging (float rpm, float vin)
+static void handle_charging (float rpm, float vin)
 {
   float chg_perc;
 
@@ -358,7 +397,8 @@ void handle_charging (float rpm, float vin)
   dbg_log[dbg_head].cur = -555;
 #endif
 
-  if (overall_state == STATE_ELEKTRISCH_RIJDEN) {
+  if ((general_state == GS_ELEKTRISCH_RIJDEN) ||
+      (general_state == GS_STARTING)) {
     charge_state = CHGSTATE_OFF;
     return;
   }
@@ -413,10 +453,10 @@ void handle_charging (float rpm, float vin)
 
 
 // 100  ticks per second.
-#define TIME_TO_TICK(tt) ((int)tt*100)
+#define TIME_TO_TICK(tt) ((int)(tt*100))
 
 
-static handle_startup ()
+static void handle_startup (void)
 {
   static int t;
 
@@ -426,9 +466,114 @@ static handle_startup ()
   case TIME_TO_TICK(2.6): set_relay (R_12V,       2000);break;
   case TIME_TO_TICK(3.0): set_relay (R_PRECHARGE,    0);break;
   case TIME_TO_TICK(3.1): set_relay (R_MAINPOWER,  500);break;
+  case TIME_TO_TICK(3.19): get_inputs (1);break; // Dummy: first analog value is invalid.
   case TIME_TO_TICK(3.2): general_state = GS_READY;break;
   }
   t++;
+}
+
+#define START_CURRENT 100.0
+#define MAX_ELEC_CURRENT 110.0
+
+
+static void handle_ECU_inputs (int rpm)
+{
+#if 0
+  if ((general_state != GS_READY) &&
+      (general_state != GS_ELEKTRISCH_RIJDEN))  return;
+#endif
+  if (general_state == GS_STARTUP) return;
+
+  get_inputs (1);
+
+  rpm = rpm / ERPM_PER_RPM;
+
+  if (digin[I_START]) {
+    general_state = GS_STARTING;
+    if (rpm > 500)
+      mc_interface_set_current (0.0);
+    else if (rpm > 400)
+      mc_interface_set_current (START_CURRENT * (500-rpm)/(500. - 400.));
+    else 
+      mc_interface_set_current (START_CURRENT);
+    //timeout_reset();
+  } else {
+    if (general_state == GS_STARTING) {
+      general_state = GS_READY;
+      mc_interface_set_current (0.0);
+    }
+  }
+
+  if (digin[I_ELEC]) {
+    if (general_state == GS_ELEKTRISCH_RIJDEN) {
+      mc_interface_set_current ( MAX_ELEC_CURRENT * ain[0]/ 65536);
+      timeout_reset ();
+    }
+    if (general_state == GS_READY) 
+      general_state = GS_ELEKTRISCH_RIJDEN;
+  } else {
+    if (general_state == GS_ELEKTRISCH_RIJDEN) {
+      general_state = GS_READY;
+      mc_interface_set_current (0);
+    }
+  }
+}
+
+
+
+
+static int handle_lcd (float rpmtot, float dutytot, float vintot)
+{
+  static int t;
+  float ic;
+  mc_fault_code fc;
+
+  if (t < 99) t++;
+  else t=0;
+
+  if ((t==0) || (t == 50)) {
+#define INTTIME (50.0 )
+    //sprintf (&display[0][0], "%.1fkm/h", (double) (rpmtot/500.0/INTTIME));
+    sprintf (&display[0][0], "%.0fRPM", (double) (rpmtot/6/INTTIME));
+
+    sprintf (&display[0][12], "duty:%.0f", (double) (dutytot*100.0/INTTIME));
+    sprintf (&display[1][0], "vin: %.2f ", (double) (vintot / INTTIME));
+
+    //    sprintf (&display[1][12], "thr: %.0f ", (double) (99 * app_adc_get_decoded_level()) );
+    sprintf (&display[1][12], "%d", general_state  );
+
+    ic =  mc_interface_read_reset_avg_input_current ();
+    // 3rd line: left side: battery and motor current
+    sprintf (&display[2][0], "I: %.1f/%.1lf", 
+	     (double) ic,
+	     (double) mc_interface_read_reset_avg_motor_current ());
+
+    // 3rd line: right side: energy consumed. 
+    sprintf (&display[2][14], "%.0fkJ", 
+	     (double) 3.6*(double) mc_interface_get_watt_hours(0) );
+
+    // bottom left: power. 
+    sprintf (&display[3][0], "P: %.0f", (double) (ic * vintot / INTTIME));
+
+    // bottom line: temp/fault. 
+    fc = mc_interface_get_fault ();
+    if (fc == FAULT_CODE_NONE) {
+      sprintf (&display[3][8], "t: %.0fC", 
+	       (double) ((((float)(ADC_Value[11]) * 3.3/4096.0 - 0.5)/0.010)));
+    } else {
+      sprintf (&display[3][8], "flt: %s", fc_to_string (fc));
+    }
+
+
+    // status, "we're running" led. 
+    palTogglePad (GPIOB, 2);
+    //    rpmtot = dutytot = vintot = 0;
+    return 1;
+  }
+
+  // Run this loop at 100Hz
+  update_lcd ();
+  return 0;
 }
 
 
@@ -437,24 +582,18 @@ static THD_FUNCTION(packet_process_thread, arg)
   (void)arg;
   //  float rpm;
   float rpmtot, dutytot, vintot, currpm, vin;
-  float dc, ic;
-  int t;
+  float dc;
   mc_fault_code fc;
 
   is_running = true;
   chRegSetThreadName("APP_LCD");
 
-  t=0;
   rpmtot = dutytot = vintot = 0;
 
   general_state = GS_STARTUP;
 
-
   palSetPadMode (GPIOB, 2, PAL_MODE_OUTPUT_PUSHPULL);
   for(;;) {
-
-    if (t < 99) t++;
-    else t=0;
     chThdSleepMilliseconds (10);
 
 #if 0 
@@ -473,54 +612,18 @@ static THD_FUNCTION(packet_process_thread, arg)
     vin      = GET_INPUT_VOLTAGE();
     vintot  += vin;
 
-    if (general_state == GS_STARTUP) 
-      handle_startup ();
-    else {
-      handle_motor_relay (currpm);
+    handle_startup ();
+
+    fc = mc_interface_get_fault ();
+
+    handle_motor_relay (currpm);
+
+    if (fc == FAULT_CODE_NONE) {
       handle_charging (currpm, vin);
+      handle_ECU_inputs (currpm);
     }
-
-
-    if ((t==0) || (t == 50)) {
-#define INTTIME (50.0 )
-      //sprintf (&display[0][0], "%.1fkm/h", (double) (rpmtot/500.0/INTTIME));
-      sprintf (&display[0][0], "%.0fRPM", (double) (rpmtot/6/INTTIME));
-
-      sprintf (&display[0][12], "duty:%.0f", (double) (dutytot*100.0/INTTIME));
-      sprintf (&display[1][0], "vin: %.2f ", (double) (vintot / INTTIME));
-
-      sprintf (&display[1][12], "thr: %.0f ", (double) (99 * app_adc_get_decoded_level()) );
-
-      ic =  mc_interface_read_reset_avg_input_current ();
-      // 3rd line: left side: battery and motor current
-      sprintf (&display[2][0], "I: %.1f/%.1lf", 
-	       (double) ic,
-	       (double) mc_interface_read_reset_avg_motor_current ());
-
-      // 3rd line: right side: energy consumed. 
-      sprintf (&display[2][14], "%.0fkJ", 
-		(double) 3.6*(double) mc_interface_get_watt_hours(0) );
-
-      // bottom left: power. 
-      sprintf (&display[3][0], "P: %.0f", (double) (ic * vintot / INTTIME));
-
-      // bottom line: temp/fault. 
-      fc = mc_interface_get_fault ();
-      if (fc == FAULT_CODE_NONE) {
-	sprintf (&display[3][8], "t: %.0fC", 
-		 (double) ((((float)(ADC_Value[11]) * 3.3/4096.0 - 0.5)/0.010)));
-      } else {
-	sprintf (&display[3][8], "flt: %s", fc_to_string (fc));
-      }
-
-
-      // status, "we're running" led. 
-      palTogglePad (GPIOB, 2);
+    if (handle_lcd (rpmtot, dutytot, vintot)) // returns true when time to reset avg/tot
       rpmtot = dutytot = vintot = 0;
-    }
-
-    // Run this loop at 100Hz
-    update_lcd ();
 
     // Reset the timeout
     //   timeout_reset();
