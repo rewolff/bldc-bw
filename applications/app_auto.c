@@ -31,6 +31,37 @@
 #include <stdio.h>
 
 
+
+/**********************************************************
+                          CONFIG
+ **********************************************************/
+
+#define ERPM_PER_RPM 6
+
+
+
+
+// For testing: 433 is reached on 30V. 
+#define MAXRPM 733
+#define CHARGE_RAMP_START_RPM (MAXRPM-70)//610
+#define CHARGE_RAMP_STOP_RPM  (MAXRPM-20) //650
+
+#define CHARGE_MOTORCURRENT -1.0
+#define CHARGE_VOLTAGE_RAMP_START 42.0
+#define CHARGE_VOLTAGE_RAMP_STOP  44.0
+
+#define MAXERPM                (MAXRPM*ERPM_PER_RPM)
+#define CHARGE_RAMP_START_ERPM (CHARGE_RAMP_START_RPM*ERPM_PER_RPM)
+#define CHARGE_RAMP_STOP_ERPM  (CHARGE_RAMP_STOP_RPM *ERPM_PER_RPM)
+
+
+#define START_CURRENT 100.0
+#define MAX_ELEC_CURRENT 110.0
+
+
+// SPI stuff
+
+
 #define LED_PORT GPIOB
 #define LED_PIN  2
 
@@ -38,20 +69,20 @@
 
 #define AUTO_INTERFACE_SPI_ADDRESS 0x7e
 
-
 #if 0 
 // on STM32 CPU
 #define NCS_PORT GPIOB
 #define NCS_PIN  11
 #else
 // ON STM32_LM5109
+// ON auto_interface. 
 #define NCS_PORT GPIOA
 #define NCS_PIN  15
 #endif
 
-
 /*
  * SPI configuration (1.5MHz, CPHA=0, CPOL=0, MSb first).
+ * Tested 1.3MHz, should've worked, but doesn't. Too bad. 
  */
 static const SPIConfig ls_spicfg = {
   NULL,
@@ -331,7 +362,7 @@ int dbg_head;
 
 #endif
 
-#define ERPM_PER_RPM 6
+
 typedef enum { GS_STARTUP, GS_READY, GS_ELEKTRISCH_RIJDEN, GS_STARTING} GeneralState;
 typedef enum { R_MOTOR, R_PRECHARGE, R_MAINPOWER, R_12V} relay_indx;
 typedef enum { CHGSTATE_OFF, CHGSTATE_CHARGE} ChargeState;
@@ -341,21 +372,6 @@ typedef enum { CHGSTATE_OFF, CHGSTATE_CHARGE} ChargeState;
 GeneralState general_state;
 RelayStatus relay_state;
 ChargeState charge_state;
-
-
-// For testing: 433 is reached on 30V. 
-#define MAXRPM 733
-#define CHARGE_RAMP_START_RPM (MAXRPM-70)//610
-#define CHARGE_RAMP_STOP_RPM  (MAXRPM-20) //650
-
-#define CHARGE_MOTORCURRENT -1.0
-#define CHARGE_VOLTAGE_RAMP_START 42.0
-#define CHARGE_VOLTAGE_RAMP_STOP  44.0
-
-#define MAXERPM                (MAXRPM*ERPM_PER_RPM)
-#define CHARGE_RAMP_START_ERPM (CHARGE_RAMP_START_RPM*ERPM_PER_RPM)
-#define CHARGE_RAMP_STOP_ERPM  (CHARGE_RAMP_STOP_RPM *ERPM_PER_RPM)
-
 
 
 void handle_motor_relay (float rpm)
@@ -471,9 +487,6 @@ static void handle_startup (void)
   }
   t++;
 }
-
-#define START_CURRENT 100.0
-#define MAX_ELEC_CURRENT 110.0
 
 
 static void handle_ECU_inputs (int rpm)
