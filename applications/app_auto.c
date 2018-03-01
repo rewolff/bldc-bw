@@ -42,21 +42,38 @@
 
 
 // For testing: 433 is reached on 30V. 
-#define MAXRPM 733
-#define CHARGE_RAMP_START_RPM (MAXRPM-70)//610
-#define CHARGE_RAMP_STOP_RPM  (MAXRPM-20) //650
+// With a KV of 14.57 at 160V we get 2333 RPM. 
+#define MAXRPM 2333
+#define CHARGE_RAMP_START_RPM (610)
+#define CHARGE_RAMP_STOP_RPM  (650)
 
-#define CHARGE_MOTORCURRENT -1.0
-#define CHARGE_VOLTAGE_RAMP_START 42.0
-#define CHARGE_VOLTAGE_RAMP_STOP  44.0
+#define CHARGE_MOTORCURRENT -40.0
+#define CHARGE_VOLTAGE_RAMP_START 166.0
+#define CHARGE_VOLTAGE_RAMP_STOP  170.0
 
 #define MAXERPM                (MAXRPM*ERPM_PER_RPM)
 #define CHARGE_RAMP_START_ERPM (CHARGE_RAMP_START_RPM*ERPM_PER_RPM)
 #define CHARGE_RAMP_STOP_ERPM  (CHARGE_RAMP_STOP_RPM *ERPM_PER_RPM)
 
 
-#define START_CURRENT 100.0
+#define START_CURRENT 110.0
 #define MAX_ELEC_CURRENT 110.0
+
+
+// Enums. 
+
+
+typedef enum { GS_STARTUP, GS_READY, GS_ELEKTRISCH_RIJDEN, GS_STARTING} GeneralState;
+typedef enum { R_MOTOR, R_PRECHARGE, R_MAINPOWER, R_12V} relay_indx;
+typedef enum { CHGSTATE_OFF, CHGSTATE_CHARGE} ChargeState;
+
+//typedef enum {RELSTAT_OFF, RELSTAT_WAIT, RELSTAT_ON} RelayStatus;
+
+GeneralState general_state;
+RelayStatus relay_state;
+ChargeState charge_state;
+
+
 
 
 // SPI stuff
@@ -361,17 +378,6 @@ struct dbg dbg_log[1000];
 int dbg_head;
 
 #endif
-
-
-typedef enum { GS_STARTUP, GS_READY, GS_ELEKTRISCH_RIJDEN, GS_STARTING} GeneralState;
-typedef enum { R_MOTOR, R_PRECHARGE, R_MAINPOWER, R_12V} relay_indx;
-typedef enum { CHGSTATE_OFF, CHGSTATE_CHARGE} ChargeState;
-
-//typedef enum {RELSTAT_OFF, RELSTAT_WAIT, RELSTAT_ON} RelayStatus;
-
-GeneralState general_state;
-RelayStatus relay_state;
-ChargeState charge_state;
 
 
 void handle_motor_relay (float rpm)
