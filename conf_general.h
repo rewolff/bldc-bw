@@ -22,7 +22,7 @@
 
 // Firmware version
 #define FW_VERSION_MAJOR		3
-#define FW_VERSION_MINOR		31
+#define FW_VERSION_MINOR		37
 
 #include "datatypes.h"
 
@@ -53,6 +53,7 @@
 	!defined(HW_VERSION_60) && !defined(HW_VERSION_R2) && !defined(HW_VERSION_VICTOR_R1A) && \
 	!defined(HW_VERSION_DAS_RS) && !defined(HW_VERSION_PALTA) && !defined(HW_VERSION_RH) && \
 	!defined(HW_VERSION_TP) && \
+	!defined(HW_VERSION_TP) && !defined(HW_VERSION_75_300) \
 	!defined(HW_VERSION_BW2) && !defined(HW_VERSION_BW3)
 //#define HW_VERSION_40
 //#define HW_VERSION_45
@@ -72,6 +73,7 @@
 //#define HW_VERSION_PALTA
 //#define HW_VERSION_RH
 //#define HW_VERSION_TP
+//#define HW_VERSION_75_300
 #endif
 
 /*
@@ -125,7 +127,6 @@
 #ifndef SERVO_OUT_ENABLE
 #define SERVO_OUT_ENABLE			0		// Enable servo output
 #endif
-#define SERVO_OUT_SIMPLE			1		// Use simple HW-based driver (recommended)
 #define SERVO_OUT_PULSE_MIN_US		1000	// Minimum pulse length in microseconds
 #define SERVO_OUT_PULSE_MAX_US		2000	// Maximum pulse length in microseconds
 #define SERVO_OUT_RATE_HZ			50		// Update rate in Hz
