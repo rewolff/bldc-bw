@@ -290,3 +290,10 @@ include $(RULESPATH)/rules.mk
 $(BUILDDIR)/$(PROJECT).dfu: $(BUILDDIR)/$(PROJECT).bin
 	dfuse-pack.py -b 0x8000000:$(BUILDDIR)/$(PROJECT).bin $@
 
+stflash: $(BUILDDIR)/$(PROJECT).bin
+	st-flash --reset write $< 0x08000000
+
+dfuload: $(BUILDDIR)/$(PROJECT).dfu
+	dfu-util -a 0 -D $<  -s :leave
+
+

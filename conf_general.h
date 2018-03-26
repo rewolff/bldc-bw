@@ -63,8 +63,8 @@
 //#define HW_VERSION_R2
 //#define HW_VERSION_VICTOR_R1A
 //#define HW_VERSION_BW
-//#define HW_VERSION_BW2
-#define HW_VERSION_BW3
+#define HW_VERSION_BW2
+//#define HW_VERSION_BW3
 //#define HW_VERSION_60
 //#define HW_VERSION_R2
 //#define HW_VERSION_VICTOR_R1A

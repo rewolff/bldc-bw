@@ -50,6 +50,7 @@
  */
 
 #define HW_ADC_CHANNELS				12
+#define HW_ADC_INJ_CHANNELS                     2
 #define HW_ADC_NBR_CONV				4
 
 // ADC Indexes
@@ -152,6 +153,8 @@
 #define HW_ENC_EXTI_CH			EXTI15_10_IRQn
 #define HW_ENC_EXTI_LINE		EXTI_Line11
 #define HW_ENC_EXTI_ISR_VEC		EXTI15_10_IRQHandler
+#define HW_ENC_TIM_ISR_CH               TIM4_IRQn
+
 
 // NRF pins
 #define NRF_PORT_CSN	GPIOB
