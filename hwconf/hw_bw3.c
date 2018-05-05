@@ -172,6 +172,7 @@ void hw_setup_adc_channels(void) {
 
 	ADC_RegularChannelConfig(ADC1, ADC_Channel_5, 2, ADC_SampleTime_15Cycles); // SO2 ISENSC // 3
 	ADC_RegularChannelConfig(ADC2, ADC_Channel_4, 2, ADC_SampleTime_15Cycles); // SO1 ISENSA // 4
+// ADC3 in6 is PF8 or something like that. Not present on this chip. 
 	ADC_RegularChannelConfig(ADC3, ADC_Channel_6, 2, ADC_SampleTime_15Cycles);  // ISENSB  // 5
 
 	ADC_RegularChannelConfig(ADC1, ADC_Channel_Vrefint, 3, ADC_SampleTime_15Cycles);   // 6
@@ -179,7 +180,7 @@ void hw_setup_adc_channels(void) {
 	ADC_RegularChannelConfig(ADC3, ADC_Channel_12, 3, ADC_SampleTime_15Cycles); // AN_IN   // 8
 
 // XXX can't be right. 
-	ADC_RegularChannelConfig(ADC1, ADC_Channel_6, 4, ADC_SampleTime_15Cycles); // ADC_TEMP //9
+	ADC_RegularChannelConfig(ADC1, ADC_Channel_6, 4, ADC_SampleTime_15Cycles); // 9: ISENSB.
 	ADC_RegularChannelConfig(ADC2, ADC_Channel_9, 4, ADC_SampleTime_15Cycles); // ADC_EXT    // 10
 	ADC_RegularChannelConfig(ADC3, ADC_Channel_10, 4, ADC_SampleTime_15Cycles); // TEMP_MOTOR // 11
 

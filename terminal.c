@@ -143,6 +143,8 @@ static void makehi (int n, int t)
   }
 }
 
+extern int npkts, nserr, nderr;
+
 
 void terminal_process_string(char *str) {
 	enum { kMaxArgs = 64 };
@@ -388,11 +390,14 @@ void terminal_process_string(char *str) {
 		palSetPadMode (gp, pin, PAL_MODE_OUTPUT_PUSHPULL);
 		palClearPad (gp, pin);
 		commands_printf ("toggling GPIO: = %x / %d: P%c%d \n", (int)gp, pin, *p, pin );
-		for (i=0;i<5000;i++) { 
+		for (i=0;i<50;i++) { 
 		  palTogglePad (gp, pin);
-		  chThdSleepMilliseconds (1);
+		  chThdSleepMilliseconds (300);
 		}
 		commands_printf ("Done\n");
+	} else if (strcmp(argv[0], "nerrs") == 0) {
+		commands_printf ("pkts= %d, nserrs= %d, nderrs=%d\n", npkts, nserr, nderr);
+
 	} else if (strcmp(argv[0], "rew_res") == 0) {
 		if (argc == 2) {
 			float duty = -1.0;
@@ -525,6 +530,7 @@ void terminal_process_string(char *str) {
 	  int i,j, af, n; 
 	  char buf[128], buf2[10];
 	  stm32_gpio_t *gp;
+	  commands_printf ("GPIO debug");
 	  if (argc > 1) {
 		//n = atoi (argv[1]);
  	    sscanf (argv[1], "%d", &n);
@@ -560,6 +566,7 @@ void terminal_process_string(char *str) {
 	    }
 	    commands_printf (buf);
 	  }
+	  commands_printf ("GPIO debug done");
 	} else if (strcmp(argv[0], "hiall") == 0) {
 	 	int p;
 		steal_PWM ();

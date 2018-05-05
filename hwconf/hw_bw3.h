@@ -68,7 +68,7 @@
 #define ADC_IND_SENS3				0
 #define ADC_IND_CURR1				4
 #define ADC_IND_CURR2				3
-#define ADC_IND_CURR3				5
+#define ADC_IND_CURR3				9
 #define ADC_IND_VIN_SENS			7
 #define ADC_IND_EXT				10
 //#define ADC_IND_EXT2				7
@@ -202,7 +202,7 @@
 
 
 #define DEBUG_PORT GPIOB
-#define DEBUG_PIN  6
+#define DEBUG_PIN  10
 
 #undef MCPWM_DEAD_TIME_CYCLES 
 #define MCPWM_DEAD_TIME_CYCLES                  80              // Dead time
@@ -210,7 +210,7 @@
 #define HW_DEAD_TIME_VALUE 	120
 
 // Setting limits
-#define HW_LIM_CURRENT                 -120.0, 120.0
+#define HW_LIM_CURRENT                 -150.0, 150.0
 #define HW_LIM_CURRENT_IN              -100.0, 100.0
 #define HW_LIM_CURRENT_ABS             0.0, 180.0
 #define HW_LIM_VIN                             6.0, 190.0

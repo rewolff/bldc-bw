@@ -21,8 +21,9 @@
 #include "ch.h"
 #include "hal.h"
 #include "hw.h"
-#include "packet.h"
-#include "commands.h"
+//#include "packet.h"
+//#include "commands.h"
+#include "timeout.h"
 #include "mc_interface.h" // Motor control functions
 
 #include <string.h>
@@ -56,14 +57,14 @@
 #define CHARGE_RAMP_STOP_ERPM  (CHARGE_RAMP_STOP_RPM *ERPM_PER_RPM)
 
 
-#define START_CURRENT 110.0
-#define MAX_ELEC_CURRENT 110.0
+#define START_CURRENT 150.0
+#define MAX_ELEC_CURRENT 150.0
 
 
 // Enums. 
 
 
-typedef enum { GS_STARTUP, GS_READY, GS_ELEKTRISCH_RIJDEN, GS_STARTING} GeneralState;
+typedef enum { GS_STARTUP, GS_READY, GS_ELEKTRISCH_RIJDEN, GS_STOPPING, GS_STARTING} GeneralState;
 typedef enum { R_MOTOR, R_PRECHARGE, R_MAINPOWER, R_12V} relay_indx;
 typedef enum { CHGSTATE_OFF, CHGSTATE_CHARGE} ChargeState;
 
@@ -115,11 +116,11 @@ static const SPIConfig ls_spicfg = {
 char display[NLINES][24];
 char olddisplay[NLINES][24];
 int addr = 0x94;
-
+int can_send_next;
 
 // Threads
-static THD_FUNCTION(packet_process_thread, arg);
-static THD_WORKING_AREA(packet_process_thread_wa, 4096);
+static THD_FUNCTION(auto_main_thread, arg);
+static THD_WORKING_AREA(auto_main_thread_wa, 4096);
 
 static volatile bool is_running = false;
 
@@ -271,8 +272,8 @@ int probe (int testaddr)
 void app_custom_start(void) 
 {
   if (!is_running) {
-    chThdCreateStatic(packet_process_thread_wa, sizeof(packet_process_thread_wa),
-		      NORMALPRIO, packet_process_thread, NULL);
+    chThdCreateStatic(auto_main_thread_wa, sizeof(auto_main_thread_wa),
+		      NORMALPRIO, auto_main_thread, NULL);
     is_running = true;
   }
   
@@ -334,17 +335,38 @@ void set_relay (int relaynum, int val)
 }
 
 
+#if 1
+unsigned short crc16a(const unsigned char* data_p, unsigned char length)
+{
+  unsigned char x;
+  unsigned short crc = 0xFFFF;
+
+  while (length--) {
+    x = crc >> 8 ^ *data_p++;
+    x ^= x>>4;
+    crc = (crc << 8) ^ ((unsigned short)(x << 12)) ^ ((unsigned short)(x <<5)) ^ ((unsigned short)x);
+  }
+  return crc;
+}
+#endif
+
+
 enum dig_idx {I_DUMMY, I_START, I_ELEC};
 
 unsigned char digin[8];
 unsigned int  ain[8];
+int last_input;
 
+int npkts, nserr, nderr;
 
 char sbuf[8];
+
+int got_data;
 
 void get_inputs (int numanalog)
 {
   int i;
+  unsigned short crc;
 
   (void) numanalog;
   // XXX todo numanalog toevoegen. 
@@ -352,16 +374,38 @@ void get_inputs (int numanalog)
   sbuf[0] = AUTO_INTERFACE_SPI_ADDRESS+1;     // The address + READ
   sbuf[1] = 11;       // CMD_GET_INPUTS
   //  for (i=2;i<8;i++) sbuf[i]=i+1;
-  spitxrx (sbuf, 7);
+
+  // 2 header 1 digital data numanalog analog channels and 2 bytes CRC.
+  spitxrx (sbuf, 2 + 1 + numanalog*2 + 2);
+  
+  npkts++;
+  crc = crc16a ((unsigned char *)sbuf+2, 3);
+
+  // XXX change 5 3+numanalog*2 
+  if ((sbuf [5] != (crc & 0xff)) ||
+      (sbuf [6] != (crc >> 8))) {
+    nserr++;
+    chThdSleepMilliseconds (1);
+    sbuf[0] = AUTO_INTERFACE_SPI_ADDRESS+1;     // The address + READ
+    sbuf[1] = 11;       // CMD_GET_INPUTS
+    //  for (i=2;i<8;i++) sbuf[i]=i+1;
+    spitxrx (sbuf, 7);
+    crc = crc16a ((unsigned char *)sbuf+2, 3);
+    if ((sbuf [5] != (crc & 0xff)) ||
+        (sbuf [6] != (crc >> 8))) {
+      nderr++;
+      got_data = 0;
+      return;
+    }
+  }
+  got_data = 1;
 
   for (i=0;i<8;i++) 
     digin[i] = (sbuf[2]>>i) & 1;
-  /*
-  digin[1] = (sbuf[2]>>1) & 1;
-  digin[2] = (sbuf[2]>>2) & 1;
-  digin[3] = (sbuf[2]>>3) & 1;
-  */
+  
   ain[0] = (sbuf[4] << 8) | sbuf[3];
+  last_input = ain[0] | (sbuf[2] << 16);
+
 }
 
 
@@ -379,6 +423,15 @@ int dbg_head;
 
 #endif
 
+int my_last_current; // ma
+
+
+void set_current (float c)
+{
+  my_last_current = c*1000;
+  mc_interface_set_current (c);
+}
+
 
 void handle_motor_relay (float rpm)
 {
@@ -388,7 +441,7 @@ void handle_motor_relay (float rpm)
     nhi++;
     nlo = 0;
     if (nhi == 3) { // 30 ms
-      mc_interface_set_current (0.0); // Should happen immediately. 
+      set_current (0.0); // Should happen immediately. 
       set_relay (R_MOTOR, 0); // this will take some time. 
       relay_state = RELSTAT_OFF;
     }
@@ -440,7 +493,7 @@ static void handle_charging (float rpm, float vin)
 #ifdef DEBUG_CHG
       dbg_log[dbg_head].cur = 0;
 #endif
-      mc_interface_set_current (0.0);
+      set_current (0.0);
       charge_state = CHGSTATE_OFF;
     }
     return;
@@ -469,7 +522,7 @@ static void handle_charging (float rpm, float vin)
 #ifdef DEBUG_CHG
   dbg_log[dbg_head].cur = 1000 * (chg_perc * CHARGE_MOTORCURRENT);
 #endif
-  mc_interface_set_current (chg_perc * CHARGE_MOTORCURRENT);
+  set_current (chg_perc * CHARGE_MOTORCURRENT);
   charge_state = CHGSTATE_CHARGE;
 }
 
@@ -494,6 +547,8 @@ static void handle_startup (void)
   t++;
 }
 
+#define START_RAMP_END   500.0
+#define START_RAMP_START 400.0
 
 static void handle_ECU_inputs (int rpm)
 {
@@ -509,31 +564,37 @@ static void handle_ECU_inputs (int rpm)
 
   if (digin[I_START]) {
     general_state = GS_STARTING;
-    if (rpm > 500)
-      mc_interface_set_current (0.0);
-    else if (rpm > 400)
-      mc_interface_set_current (START_CURRENT * (500-rpm)/(500. - 400.));
+    if (rpm > START_RAMP_END)
+      set_current (0.0);
+    else if (rpm > START_RAMP_START)
+      set_current (START_CURRENT * (START_RAMP_END-rpm)/(START_RAMP_END - START_RAMP_START));
     else 
-      mc_interface_set_current (START_CURRENT);
-    //timeout_reset();
+      set_current (START_CURRENT);
+    if (got_data) timeout_reset();
   } else {
     if (general_state == GS_STARTING) {
       general_state = GS_READY;
-      mc_interface_set_current (0.0);
+      set_current (0.0);
     }
   }
 
   if (digin[I_ELEC]) {
     if (general_state == GS_ELEKTRISCH_RIJDEN) {
-      mc_interface_set_current ( MAX_ELEC_CURRENT * ain[0]/ 65536);
-      timeout_reset ();
+      set_current ( MAX_ELEC_CURRENT * ain[0]/ 65536);
+      if (got_data) timeout_reset ();
     }
-    if (general_state == GS_READY) 
+    if ((general_state == GS_READY)  ||
+        (general_state == GS_STOPPING))
       general_state = GS_ELEKTRISCH_RIJDEN;
   } else {
     if (general_state == GS_ELEKTRISCH_RIJDEN) {
-      general_state = GS_READY;
-      mc_interface_set_current (0);
+      general_state = GS_STOPPING;
+    } else {
+      // do not set the current immediately on first niet-elek.
+      if (general_state == GS_STOPPING) {
+        set_current (0.0);
+        general_state = GS_READY;
+      }
     }
   }
 }
@@ -585,7 +646,7 @@ static int handle_lcd (float rpmtot, float dutytot, float vintot)
 
 
     // status, "we're running" led. 
-    palTogglePad (GPIOB, 2);
+    palTogglePad (LED_PORT, LED_PIN);
     //    rpmtot = dutytot = vintot = 0;
     return 1;
   }
@@ -596,7 +657,121 @@ static int handle_lcd (float rpmtot, float dutytot, float vintot)
 }
 
 
-static THD_FUNCTION(packet_process_thread, arg) 
+/*
+ * This callback is invoked when a transmission buffer has been completely
+ * read by the driver.
+ */
+static void txend1(UARTDriver *uartp) 
+{
+  (void)uartp;
+}
+
+/*
+ * This callback is invoked when a transmission has physically completed.
+ */
+static void txend2(UARTDriver *uartp) 
+{
+  can_send_next = 1;
+  (void)uartp;
+}
+
+/*
+ * This callback is invoked on a receive error, the errors mask is passed
+ * as parameter.
+ */
+static void rxerr(UARTDriver *uartp, uartflags_t e) 
+{
+  (void)uartp;
+  (void)e;
+}
+
+/*
+ * This callback is invoked when a character is received but the application
+ * was not ready to receive it, the character is passed as parameter.
+ */
+static void rxchar(UARTDriver *uartp, uint16_t c) 
+{
+  (void)uartp;
+  (void)c;
+#if 0 
+  serial_rx_buffer[serial_rx_write_pos++] = c;
+  
+  if (serial_rx_write_pos == SERIAL_RX_BUFFER_SIZE) {
+    serial_rx_write_pos = 0;
+  }
+  
+  chSysLockFromISR();
+  chEvtSignalI(process_tp, (eventmask_t) 1);
+  chSysUnlockFromISR();
+#endif
+}
+
+/*
+ * This callback is invoked when a receive buffer has been completely written.
+ */
+static void rxend(UARTDriver *uartp) 
+{
+  (void)uartp;
+}
+
+#define BAUDRATE 1000000
+/*
+ * UART driver configuration structure.
+ */
+static UARTConfig uart_cfg = {
+  txend1,
+  txend2,
+  rxend,
+  rxchar,
+  rxerr,
+  BAUDRATE,
+  0,
+  USART_CR2_LINEN,
+  0
+};
+
+
+struct packet {
+  int som;      // 0x1234567
+  systime_t ts; // in 1/10000th of a second.
+  int rpm;      // in 0.001 RPM. 
+  int duty;     // in .1%
+  int vin;      // in mV. 
+  int /*mc_fault_code*/ fault;
+  uint8_t state[4];// 
+  int lastcurrent;
+  int lastinput;
+  int temp;     // mili Celcius. 
+} pkt;
+
+
+#define MYUART UARTD6
+
+void send_next_logging_packet (float currpm, float dc, float vin, mc_fault_code fc)
+{
+  uartStopSend(&MYUART);
+
+  pkt.som = 0x1234567;
+  pkt.ts = chVTGetSystemTimeX ();
+  pkt.rpm = currpm * 1000;
+  pkt.duty = dc * 1000;
+  pkt.vin = vin * 1000;
+  pkt.fault = fc;
+  pkt.state[0] = general_state;
+  pkt.state[1] = relay_state;
+  pkt.state[2] = charge_state;
+  pkt.state[3] = 0xaa;
+  pkt.lastcurrent = my_last_current;
+  pkt.lastinput = last_input;
+  pkt.temp =   1000* (((float)(ADC_Value[11]) * 3.3/4096.0 - 0.5)/0.010);
+
+  can_send_next = 0;
+  uartStartSend(&MYUART, sizeof (pkt), &pkt);
+}
+
+
+
+static THD_FUNCTION(auto_main_thread, arg) 
 { 
   (void)arg;
   //  float rpm;
@@ -611,7 +786,17 @@ static THD_FUNCTION(packet_process_thread, arg)
 
   general_state = GS_STARTUP;
 
-  palSetPadMode (GPIOB, 2, PAL_MODE_OUTPUT_PUSHPULL);
+  palSetPadMode (LED_PORT, LED_PIN, PAL_MODE_OUTPUT_PUSHPULL);
+
+  palSetPadMode (GPIOC, 6, PAL_MODE_ALTERNATE (8));
+  palSetPadMode (GPIOC, 7, PAL_MODE_ALTERNATE (8));
+
+  uartStart(&MYUART, &uart_cfg);
+  can_send_next = 1;
+
+
+  //uartStartReceive(&MYUART, 16, buffer);
+
   for(;;) {
     chThdSleepMilliseconds (10);
 
@@ -622,6 +807,8 @@ static THD_FUNCTION(packet_process_thread, arg)
     }
 #endif
 
+    /* Bookkeeping: Get info from mc interface */
+
     currpm   = mc_interface_get_rpm();
     rpmtot  += currpm; 
 
@@ -631,9 +818,12 @@ static THD_FUNCTION(packet_process_thread, arg)
     vin      = GET_INPUT_VOLTAGE();
     vintot  += vin;
 
-    handle_startup ();
-
     fc = mc_interface_get_fault ();
+
+    if (can_send_next) 
+      send_next_logging_packet (currpm, dc, vin, fc);
+
+    handle_startup ();
 
     handle_motor_relay (currpm);
 
@@ -641,11 +831,8 @@ static THD_FUNCTION(packet_process_thread, arg)
       handle_charging (currpm, vin);
       handle_ECU_inputs (currpm);
     }
-    if (handle_lcd (rpmtot, dutytot, vintot)) // returns true when time to reset avg/tot
+    if (handle_lcd (rpmtot, dutytot, vintot)) { // returns true when time to reset avg/tot
       rpmtot = dutytot = vintot = 0;
-
-    // Reset the timeout
-    //   timeout_reset();
+    }
   }
-
 }

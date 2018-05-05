@@ -293,3 +293,6 @@ $(BUILDDIR)/$(PROJECT).dfu: $(BUILDDIR)/$(PROJECT).bin
 stflash: $(BUILDDIR)/$(PROJECT).bin
 	st-flash --reset write $< 0x08000000
 
+dfuload: $(BUILDDIR)/$(PROJECT).dfu
+	dfu-util -a 0 -D $<  -s :leave
+
