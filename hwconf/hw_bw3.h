@@ -210,9 +210,9 @@
 #define HW_DEAD_TIME_VALUE 	120
 
 // Setting limits
-#define HW_LIM_CURRENT                 -150.0, 150.0
+#define HW_LIM_CURRENT                 -180.0, 180.0
 #define HW_LIM_CURRENT_IN              -100.0, 100.0
-#define HW_LIM_CURRENT_ABS             0.0, 180.0
+#define HW_LIM_CURRENT_ABS             0.0, 190.0
 #define HW_LIM_VIN                             6.0, 190.0
 #define HW_LIM_ERPM                            -200e3, 200e3
 #define HW_LIM_DUTY_MIN                        0.0, 0.1
