@@ -31,6 +31,7 @@
 #include "encoder.h"
 #include "drv8301.h"
 #include "drv8305.h"
+#include "drv8320.h"
 
 #include <string.h>
 #include <stdio.h>
@@ -38,7 +39,7 @@
 
 // Settings
 #define FAULT_VEC_LEN						25
-#define CALLBACK_LEN						25
+#define CALLBACK_LEN						40
 
 // Private types
 typedef struct _terminal_callback_struct {
@@ -224,6 +225,10 @@ void terminal_process_string(char *str) {
 #ifdef HW_HAS_DRV8301
 				if (fault_vec[i].fault == FAULT_CODE_DRV) {
 					commands_printf("DRV8301_FAULTS   : %s", drv8301_faults_to_string(fault_vec[i].drv8301_faults));
+				}
+#elif defined(HW_HAS_DRV8320)
+				if (fault_vec[i].fault == FAULT_CODE_DRV) {
+					commands_printf("DRV8320_FAULTS   : %s", drv8320_faults_to_string(fault_vec[i].drv8301_faults));
 				}
 #endif
 				commands_printf(" ");
@@ -742,145 +747,6 @@ void terminal_process_string(char *str) {
 				STM32_UUID_8[8], STM32_UUID_8[9], STM32_UUID_8[10], STM32_UUID_8[11]);
 		commands_printf("Permanent NRF found: %s", conf_general_permanent_nrf_found ? "Yes" : "No");
 		commands_printf(" ");
-	} else if (strcmp(argv[0], "drv8301_read_reg") == 0) {
-#ifdef HW_HAS_DRV8301
-		if (argc == 2) {
-			int reg = -1;
-			sscanf(argv[1], "%d", &reg);
-
-			if (reg >= 0) {
-				unsigned int res = drv8301_read_reg(reg);
-				char bl[9];
-				char bh[9];
-
-				utils_byte_to_binary((res >> 8) & 0xFF, bh);
-				utils_byte_to_binary(res & 0xFF, bl);
-
-				commands_printf("Reg 0x%02x: %s %s (0x%04x)\n", reg, bh, bl, res);
-			} else {
-				commands_printf("Invalid argument(s).\n");
-			}
-		} else {
-			commands_printf("This command requires one argument.\n");
-		}
-#else
-		commands_printf("This hardware does not have a DRV8301.\n");
-#endif
-	} else if (strcmp(argv[0], "drv8301_write_reg") == 0) {
-#ifdef HW_HAS_DRV8301
-		if (argc == 3) {
-			int reg = -1;
-			int val = -1;
-			sscanf(argv[1], "%d", &reg);
-			sscanf(argv[2], "%x", &val);
-
-			if (reg >= 0 && val >= 0) {
-				drv8301_write_reg(reg, val);
-				unsigned int res = drv8301_read_reg(reg);
-				char bl[9];
-				char bh[9];
-
-				utils_byte_to_binary((res >> 8) & 0xFF, bh);
-				utils_byte_to_binary(res & 0xFF, bl);
-
-				commands_printf("New reg value 0x%02x: %s %s (0x%04x)\n", reg, bh, bl, res);
-			} else {
-				commands_printf("Invalid argument(s).\n");
-			}
-		} else {
-			commands_printf("This command requires two arguments.\n");
-		}
-#else
-		commands_printf("This hardware does not have a DRV8301.\n");
-#endif
-	} else if (strcmp(argv[0], "drv8301_set_oc_adj") == 0) {
-#ifdef HW_HAS_DRV8301
-		if (argc == 2) {
-			int val = -1;
-			sscanf(argv[1], "%d", &val);
-
-			if (val >= 0 && val < 32) {
-				drv8301_set_oc_adj(val);
-				unsigned int res = drv8301_read_reg(2);
-				char bl[9];
-				char bh[9];
-
-				utils_byte_to_binary((res >> 8) & 0xFF, bh);
-				utils_byte_to_binary(res & 0xFF, bl);
-
-				commands_printf("New reg value 0x%02x: %s %s (0x%04x)\n", 2, bh, bl, res);
-			} else {
-				commands_printf("Invalid argument(s).\n");
-			}
-		} else {
-			commands_printf("This command requires one argument.\n");
-		}
-#else
-		commands_printf("This hardware does not have a DRV8301.\n");
-#endif
-	} else if (strcmp(argv[0], "drv8301_print_faults") == 0) {
-#ifdef HW_HAS_DRV8301
-		commands_printf(drv8301_faults_to_string(drv8301_read_faults()));
-#else
-		commands_printf("This hardware does not have a DRV8301.\n");
-#endif
-	} else if (strcmp(argv[0], "drv8301_reset_faults") == 0) {
-#ifdef HW_HAS_DRV8301
-		drv8301_reset_faults();
-#else
-		commands_printf("This hardware does not have a DRV8301.\n");
-#endif
-	} else if (strcmp(argv[0], "drv8305_read_reg") == 0) {
-#ifdef HW_HAS_DRV8305
-		if (argc == 2) {
-			int reg = -1;
-			sscanf(argv[1], "%d", &reg);
-
-			if (reg >= 0) {
-				unsigned int res = drv8305_read_reg(reg);
-				char bl[9];
-				char bh[9];
-
-				utils_byte_to_binary((res >> 8) & 0xFF, bh);
-				utils_byte_to_binary(res & 0xFF, bl);
-
-				commands_printf("Reg 0x%02x: %s %s (0x%04x)\n", reg, bh, bl, res);
-			} else {
-				commands_printf("Invalid argument(s).\n");
-			}
-		} else {
-			commands_printf("This command requires one argument.\n");
-		}
-#else
-		commands_printf("This hardware does not have a DRV8305.\n");
-#endif
-	} else if (strcmp(argv[0], "drv8305_write_reg") == 0) {
-#ifdef HW_HAS_DRV8305
-		if (argc == 3) {
-			int reg = -1;
-			int val = -1;
-			sscanf(argv[1], "%d", &reg);
-			sscanf(argv[2], "%x", &val);
-
-			if (reg >= 0 && val >= 0) {
-				drv8305_write_reg(reg, val);
-				unsigned int res = drv8305_read_reg(reg);
-				char bl[9];
-				char bh[9];
-
-				utils_byte_to_binary((res >> 8) & 0xFF, bh);
-				utils_byte_to_binary(res & 0xFF, bl);
-
-				commands_printf("New reg value 0x%02x: %s %s (0x%04x)\n", reg, bh, bl, res);
-			} else {
-				commands_printf("Invalid argument(s).\n");
-			}
-		} else {
-			commands_printf("This command requires two arguments.\n");
-		}
-#else
-		commands_printf("This hardware does not have a DRV8305.\n");
-#endif
 	} else if (strcmp(argv[0], "foc_openloop") == 0) {
 		if (argc == 3) {
 			float current = -1.0;
