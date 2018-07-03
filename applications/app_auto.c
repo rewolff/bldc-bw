@@ -44,7 +44,7 @@
 
 // For testing: 433 is reached on 30V. 
 // With a KV of 14.57 at 160V we get 2333 RPM. 
-#define MAXRPM 2333
+#define MAXRPM 2233
 #define CHARGE_RAMP_START_RPM (610)
 #define CHARGE_RAMP_STOP_RPM  (650)
 
