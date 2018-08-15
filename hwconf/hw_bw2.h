@@ -179,7 +179,7 @@
 
 
 #define DEBUG_PORT GPIOB
-#define DEBUG_PIN  6
+#define DEBUG_PIN 10
 
 #undef MCPWM_DEAD_TIME_CYCLES 
 #define MCPWM_DEAD_TIME_CYCLES                  80              // Dead time

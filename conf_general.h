@@ -99,7 +99,8 @@
 /*
  * Set APP_CUSTOM_TO_USE to the name of the main C file of the custom application.
  */
-//#define APP_CUSTOM_TO_USE			"app_ellwee.c"
+#define APP_CUSTOM_TO_USE			"app_auto.c"
+#define APP_HAS_RELAY 1
 
 /*
  * Enable CAN-bus
