@@ -20,7 +20,7 @@
 
 #include "ch.h"
 #include "hal.h"
-#include "servo.h"
+//#include "servo.h"
 
 /*
  Differences between VESC 4.8 and BW2/ESC_STM32
@@ -182,6 +182,8 @@ void hw_setup_servo_outputs(void) {
 	// Set up GPIO ports
 	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOB, ENABLE);
 
+#if 0
+// Apparently code now works different. 
 	// Set up servo structures
 	servos[0].gpio = GPIOB;
 	servos[0].pin = 5;
@@ -192,6 +194,7 @@ void hw_setup_servo_outputs(void) {
 	servos[1].pin = 4;
 	servos[1].offset = 0;
 	servos[1].pos = 0;
+#endif
 }
 
 void hw_start_i2c(void) {
