@@ -53,7 +53,7 @@
 	!defined(HW_VERSION_60) && !defined(HW_VERSION_R2) && !defined(HW_VERSION_VICTOR_R1A) && \
 	!defined(HW_VERSION_DAS_RS) && !defined(HW_VERSION_PALTA) && !defined(HW_VERSION_RH) && \
 	!defined(HW_VERSION_TP) && \
-	!defined(HW_VERSION_TP) && !defined(HW_VERSION_75_300) \
+	!defined(HW_VERSION_TP) && !defined(HW_VERSION_75_300) && \
 	!defined(HW_VERSION_BW2) && !defined(HW_VERSION_BW3)
 //#define HW_VERSION_40
 //#define HW_VERSION_45
