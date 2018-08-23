@@ -36,6 +36,7 @@
 #include <math.h>
 #include <string.h>
 #include <stdlib.h>
+#include "app.h"
 
 // Private types
 typedef struct {
@@ -110,7 +111,7 @@ static volatile float m_pos_pid_now;
 static volatile bool m_init_done;
 static volatile float m_gamma_now;
 
-#ifdef HW_HAS_3_SHUNTS
+#ifdef HW_HAS_REW3_SHUNTS
 static volatile int m_curr2_sum;
 static volatile int m_curr2_offset;
 #endif
@@ -232,7 +233,7 @@ void mcpwm_foc_init(volatile mc_configuration *configuration) {
 	memset((void*)&m_motor_state, 0, sizeof(motor_state_t));
 	memset((void*)&m_samples, 0, sizeof(mc_sample_t));
 
-#ifdef HW_HAS_3_SHUNTS
+#ifdef HW_HAS_REW3_SHUNTS
 	m_curr2_sum = 0;
 #endif
 
@@ -1493,19 +1494,19 @@ void mcpwm_foc_adc_int_handler(void *p, uint32_t flags) {
 	int curr0 = ADC_Value[ADC_IND_CURR1];
 	int curr1 = ADC_Value[ADC_IND_CURR2];
 
-#ifdef HW_HAS_3_SHUNTS
+#ifdef HW_HAS_REW3_SHUNTS
 	int curr2 = ADC_Value[ADC_IND_CURR3];
 #endif
 
 	m_curr0_sum += curr0;
 	m_curr1_sum += curr1;
-#ifdef HW_HAS_3_SHUNTS
+#ifdef HW_HAS_REW3_SHUNTS
 	m_curr2_sum += curr2;
 #endif
 
 	curr0 -= m_curr0_offset;
 	curr1 -= m_curr1_offset;
-#ifdef HW_HAS_3_SHUNTS
+#ifdef HW_HAS_REW3_SHUNTS
 	curr2 -= m_curr2_offset;
 #endif
 
@@ -1513,7 +1514,7 @@ void mcpwm_foc_adc_int_handler(void *p, uint32_t flags) {
 
 	ADC_curr_norm_value[0] = curr0;
 	ADC_curr_norm_value[1] = curr1;
-#ifdef HW_HAS_3_SHUNTS
+#ifdef HW_HAS_REW3_SHUNTS
 	ADC_curr_norm_value[2] = curr2;
 #else
 	ADC_curr_norm_value[2] = -(ADC_curr_norm_value[0] + ADC_curr_norm_value[1]);
@@ -2058,14 +2059,14 @@ static void do_dc_cal(void) {
 	chThdSleepMilliseconds(1000);
 	m_curr0_sum = 0;
 	m_curr1_sum = 0;
-#ifdef HW_HAS_3_SHUNTS
+#ifdef HW_HAS_REW3_SHUNTS
 	m_curr2_sum = 0;
 #endif
 	m_curr_samples = 0;
 	while(m_curr_samples < 4000) {};
 	m_curr0_offset = m_curr0_sum / m_curr_samples;
 	m_curr1_offset = m_curr1_sum / m_curr_samples;
-#ifdef HW_HAS_3_SHUNTS
+#ifdef HW_HAS_REW3_SHUNTS
 	m_curr2_offset = m_curr2_sum / m_curr_samples;
 #endif
 	DCCAL_OFF();
@@ -2616,6 +2617,16 @@ static float correct_hall(float angle, float speed, float dt) {
 		}
 	}
 
+	// When decoupling the motor phases with relays, keep track of
+	// the RPM using the hall sensors. 
+
+#ifdef APP_CUSTOM_TO_USE
+#if APP_HAS_RELAY
+	if ( relay_state != RELSTAT_ON) 
+	  using_hall = 1;
+
+#endif
+#endif
 	if (using_hall) {
 		int ang_hall_int = m_conf->foc_hall_table[read_hall()];
 

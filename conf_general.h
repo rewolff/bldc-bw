@@ -1,5 +1,5 @@
 /*
-	Copyright 2017 Benjamin Vedder	benjamin@vedder.se
+	Copyright 2017 - 2018 Benjamin Vedder	benjamin@vedder.se
 
 	This file is part of the VESC firmware.
 
@@ -22,7 +22,7 @@
 
 // Firmware version
 #define FW_VERSION_MAJOR		3
-#define FW_VERSION_MINOR		37
+#define FW_VERSION_MINOR		40
 
 #include "datatypes.h"
 
@@ -44,6 +44,9 @@
 // Benjamins first HW60 PCB with PB5 and PB6 swapped
 //#define HW60_VEDDER_FIRST_PCB
 
+// Benjamins first HW75_300 PCB with different LED pins and motor temp error
+//#define HW75_300_VEDDER_FIRST_PCB
+
 /*
  * Select only one hardware version
  */
@@ -52,8 +55,8 @@
 	!defined(HW_VERSION_R2) && !defined(HW_VERSION_VICTOR_R1A) && !defined(HW_VERSION_BW) && \
 	!defined(HW_VERSION_60) && !defined(HW_VERSION_R2) && !defined(HW_VERSION_VICTOR_R1A) && \
 	!defined(HW_VERSION_DAS_RS) && !defined(HW_VERSION_PALTA) && !defined(HW_VERSION_RH) && \
-	!defined(HW_VERSION_TP) && \
-	!defined(HW_VERSION_TP) && !defined(HW_VERSION_75_300) && \
+	!defined(HW_VERSION_TP) && !defined(HW_VERSION_75_300) && !defined(HW_VERSION_MINI4) && \
+	!defined(HW_VERSION_DAS_MINI) && \
 	!defined(HW_VERSION_BW2) && !defined(HW_VERSION_BW3)
 //#define HW_VERSION_40
 //#define HW_VERSION_45
@@ -74,6 +77,8 @@
 //#define HW_VERSION_RH
 //#define HW_VERSION_TP
 //#define HW_VERSION_75_300
+//#define HW_VERSION_MINI4
+//#define HW_VERSION_DAS_MINI
 #endif
 
 /*
@@ -94,7 +99,8 @@
 /*
  * Set APP_CUSTOM_TO_USE to the name of the main C file of the custom application.
  */
-//#define APP_CUSTOM_TO_USE			"app_ellwee.c"
+#define APP_CUSTOM_TO_USE			"app_auto.c"
+#define APP_HAS_RELAY 1
 
 /*
  * Enable CAN-bus

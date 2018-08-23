@@ -40,7 +40,7 @@
  * 2:	IN2		SENS1
  * 3:	IN5		CURR2
  * 4:	IN6		CURR1
- * 5:	IN3		NC
+ * 5:	IN3		vbus
  * 6:	Vrefint
  * 7:	IN8		ADC_EXT2
  * 8:	IN12	AN_IN
@@ -179,7 +179,7 @@
 
 
 #define DEBUG_PORT GPIOB
-#define DEBUG_PIN  6
+#define DEBUG_PIN 10
 
 #undef MCPWM_DEAD_TIME_CYCLES 
 #define MCPWM_DEAD_TIME_CYCLES                  80              // Dead time

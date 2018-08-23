@@ -13,6 +13,10 @@
 static THD_FUNCTION(lcd_thread, arg);
 static THD_WORKING_AREA(lcd_thread_wa, 2048); // 2kb stack for this thread
 
+static volatile bool stop_now = true;
+static volatile bool is_running = false;
+
+
 #define LED_PORT GPIOB
 #define LED_PIN  2
 
@@ -27,6 +31,12 @@ static THD_WORKING_AREA(lcd_thread_wa, 2048); // 2kb stack for this thread
 #endif
 
 #define MYSPI SPID1
+
+
+#define app_lcd_init      app_custom_init
+#define app_lcd_configure app_custom_configure
+#define app_lcd_start     app_custom_start
+#define app_lcd_stop      app_custom_stop
 
 
 /*
@@ -196,12 +206,12 @@ int probe (int testaddr)
 void app_lcd_init(void) 
 {
   // Set the UART TX pin as an input with pulldown
-  palSetPadMode(HW_UART_TX_PORT, HW_UART_TX_PIN, PAL_MODE_INPUT_PULLDOWN);
+//  palSetPadMode(HW_UART_TX_PORT, HW_UART_TX_PIN, PAL_MODE_INPUT_PULLDOWN);
   
   // The led on the bitwizard board. 
-  palSetPadMode(LED_PORT, LED_PIN, PAL_MODE_OUTPUT_PUSHPULL);
+//  palSetPadMode(LED_PORT, LED_PIN, PAL_MODE_OUTPUT_PUSHPULL);
   
-  palSetPadMode(NCS_PORT, NCS_PIN, PAL_MODE_OUTPUT_PUSHPULL);
+//  palSetPadMode(NCS_PORT, NCS_PIN, PAL_MODE_OUTPUT_PUSHPULL);
   
   palSetPadMode(NCS_PORT, NCS_PIN, PAL_MODE_OUTPUT_PUSHPULL);
   
@@ -216,10 +226,38 @@ void app_lcd_init(void)
   if (!probe (0x82))
     probe (0x94);
 
+
+  //  chThdCreateStatic(lcd_thread_wa, sizeof(lcd_thread_wa),
+  //	    NORMALPRIO, lcd_thread, NULL);
+}
+
+void app_lcd_start(void) 
+{
+  stop_now = false;
   // Start the lcd thread
+#if 0
   chThdCreateStatic(lcd_thread_wa, sizeof(lcd_thread_wa),
 		    NORMALPRIO, lcd_thread, NULL);
+#endif
+
 }
+
+
+void app_lcd_stop(void) 
+{
+  stop_now = true;
+  while (is_running) {
+    chThdSleepMilliseconds(1);
+  }
+}
+
+
+void app_lcd_configure(void) 
+{
+  // nothing for now. 
+}
+
+
 
 char *fc_to_string (mc_fault_code fault) 
 {
@@ -239,7 +277,9 @@ extern float app_adc_get_decoded_level(void);
 
 
 //static char buf[0x20];
- 
+
+#if 1
+
 static THD_FUNCTION(lcd_thread, arg) 
 {
   (void)arg;
@@ -249,14 +289,21 @@ static THD_FUNCTION(lcd_thread, arg)
   int t;
   mc_fault_code fc;
 
+  is_running = true;
   chRegSetThreadName("APP_LCD");
   t=0;
   ptot = rpmtot = dutytot = vintot = curtot = batcurtot = 0;
-
+  //  palSetPadMode (GPIOB, 2, PAL_MODE_OUTPUT_PUSHPULL);
   for(;;) {
+
     if (t <99) t++;
     else t=0;
     chThdSleepMilliseconds (10);
+
+    if (stop_now) {
+      is_running = false;
+      return;
+    }
 
     //    rpm = mc_interface_get_rpm() / 7;
     //sprintf (buf, "rpm: %.0f", rpm);
@@ -318,3 +365,21 @@ static THD_FUNCTION(lcd_thread, arg)
     timeout_reset();
   }
 }
+
+#else
+static THD_FUNCTION(lcd_thread, arg) 
+{
+  (void)arg;
+
+  //  palSetPadMode (GPIOB, 2, PAL_MODE_OUTPUT_PUSHPULL);
+  for(;;) {
+    chThdSleepMilliseconds (100);
+
+    if (stop_now) {
+      is_running = false;
+      return;
+    }
+    palTogglePad (GPIOB, 2);
+  }
+}
+#endif

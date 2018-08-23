@@ -31,6 +31,7 @@
 #include "encoder.h"
 #include "drv8301.h"
 #include "drv8305.h"
+#include "drv8320.h"
 
 #include <string.h>
 #include <stdio.h>
@@ -38,7 +39,7 @@
 
 // Settings
 #define FAULT_VEC_LEN						25
-#define CALLBACK_LEN						25
+#define CALLBACK_LEN						40
 
 // Private types
 typedef struct _terminal_callback_struct {
@@ -143,6 +144,8 @@ static void makehi (int n, int t)
   }
 }
 
+extern int npkts, nserr, nderr;
+
 
 void terminal_process_string(char *str) {
 	enum { kMaxArgs = 64 };
@@ -222,6 +225,10 @@ void terminal_process_string(char *str) {
 #ifdef HW_HAS_DRV8301
 				if (fault_vec[i].fault == FAULT_CODE_DRV) {
 					commands_printf("DRV8301_FAULTS   : %s", drv8301_faults_to_string(fault_vec[i].drv8301_faults));
+				}
+#elif defined(HW_HAS_DRV8320)
+				if (fault_vec[i].fault == FAULT_CODE_DRV) {
+					commands_printf("DRV8320_FAULTS   : %s", drv8320_faults_to_string(fault_vec[i].drv8301_faults));
 				}
 #endif
 				commands_printf(" ");
@@ -388,11 +395,14 @@ void terminal_process_string(char *str) {
 		palSetPadMode (gp, pin, PAL_MODE_OUTPUT_PUSHPULL);
 		palClearPad (gp, pin);
 		commands_printf ("toggling GPIO: = %x / %d: P%c%d \n", (int)gp, pin, *p, pin );
-		for (i=0;i<5000;i++) { 
+		for (i=0;i<50;i++) { 
 		  palTogglePad (gp, pin);
-		  chThdSleepMilliseconds (1);
+		  chThdSleepMilliseconds (300);
 		}
 		commands_printf ("Done\n");
+	} else if (strcmp(argv[0], "nerrs") == 0) {
+		commands_printf ("pkts= %d, nserrs= %d, nderrs=%d\n", npkts, nserr, nderr);
+
 	} else if (strcmp(argv[0], "rew_res") == 0) {
 		if (argc == 2) {
 			float duty = -1.0;
@@ -525,6 +535,7 @@ void terminal_process_string(char *str) {
 	  int i,j, af, n; 
 	  char buf[128], buf2[10];
 	  stm32_gpio_t *gp;
+	  commands_printf ("GPIO debug");
 	  if (argc > 1) {
 		//n = atoi (argv[1]);
  	    sscanf (argv[1], "%d", &n);
@@ -560,6 +571,7 @@ void terminal_process_string(char *str) {
 	    }
 	    commands_printf (buf);
 	  }
+	  commands_printf ("GPIO debug done");
 	} else if (strcmp(argv[0], "hiall") == 0) {
 	 	int p;
 		steal_PWM ();
@@ -589,19 +601,37 @@ void terminal_process_string(char *str) {
 		give_PWM ();
                 commands_printf("done");
 	} else if (strcmp(argv[0], "show_hall") == 0) {
-		int i;
+	  int i, fp;
                 int oldhal = -1, hal;
- 
+                int hv[8];
+                char buf[100];
+		//static int trans[8] = {0,1,5,6, 3,2,4,0};
+		static int trans[8] = {0,6,2,1, 4,5,3,0};
+		if (argc > 1) fp = atoi (argv[1]);
+		else fp = 0;
+                for (i=0;i<8;i++) hv[i] = 0; 
                 commands_printf("showing hall");
-                for (i=0;i<10000;i++) {
+                for (i=0;i<10000/2;i++) {
                   hal = read_hall ();
-                  if (hal  != oldhal) {
-			commands_printf("%d %d %d  (%d)", (hal & 1) >> 0, (hal&2)>>1, (hal&4)>>2 ,
-			palReadPad (GPIOB,6));
+                  if (fp || (hal  != oldhal)) {
+			commands_printf("%d %d %d  (%d/%d)  %d %d %d", 
+                        (hal & 1) >> 0, (hal&2)>>1, (hal&4)>>2 ,
+					hal, trans[hal], 
+					ADC_V_L1, 
+					ADC_V_L2, 
+					ADC_V_L3 ); 
+			hv[hal]++;
                   }
                   oldhal = hal;
-                  chThdSleepMilliseconds (1);
+                  chThdSleepMilliseconds (2);
 		}
+                buf[0] = 0;
+                for (i=0;i<8;i++) sprintf (buf+strlen(buf), "%4d ", i);
+                commands_printf(buf);
+                buf[0] = 0;
+                for (i=0;i<8;i++) sprintf (buf+strlen(buf), "%4d ", hv[i]);
+                commands_printf(buf);
+                
                 commands_printf("done");
 	} else if (strcmp(argv[0], "measure_ind") == 0) {
 		if (argc == 2) {
@@ -722,145 +752,6 @@ void terminal_process_string(char *str) {
 				STM32_UUID_8[8], STM32_UUID_8[9], STM32_UUID_8[10], STM32_UUID_8[11]);
 		commands_printf("Permanent NRF found: %s", conf_general_permanent_nrf_found ? "Yes" : "No");
 		commands_printf(" ");
-	} else if (strcmp(argv[0], "drv8301_read_reg") == 0) {
-#ifdef HW_HAS_DRV8301
-		if (argc == 2) {
-			int reg = -1;
-			sscanf(argv[1], "%d", &reg);
-
-			if (reg >= 0) {
-				unsigned int res = drv8301_read_reg(reg);
-				char bl[9];
-				char bh[9];
-
-				utils_byte_to_binary((res >> 8) & 0xFF, bh);
-				utils_byte_to_binary(res & 0xFF, bl);
-
-				commands_printf("Reg 0x%02x: %s %s (0x%04x)\n", reg, bh, bl, res);
-			} else {
-				commands_printf("Invalid argument(s).\n");
-			}
-		} else {
-			commands_printf("This command requires one argument.\n");
-		}
-#else
-		commands_printf("This hardware does not have a DRV8301.\n");
-#endif
-	} else if (strcmp(argv[0], "drv8301_write_reg") == 0) {
-#ifdef HW_HAS_DRV8301
-		if (argc == 3) {
-			int reg = -1;
-			int val = -1;
-			sscanf(argv[1], "%d", &reg);
-			sscanf(argv[2], "%x", &val);
-
-			if (reg >= 0 && val >= 0) {
-				drv8301_write_reg(reg, val);
-				unsigned int res = drv8301_read_reg(reg);
-				char bl[9];
-				char bh[9];
-
-				utils_byte_to_binary((res >> 8) & 0xFF, bh);
-				utils_byte_to_binary(res & 0xFF, bl);
-
-				commands_printf("New reg value 0x%02x: %s %s (0x%04x)\n", reg, bh, bl, res);
-			} else {
-				commands_printf("Invalid argument(s).\n");
-			}
-		} else {
-			commands_printf("This command requires two arguments.\n");
-		}
-#else
-		commands_printf("This hardware does not have a DRV8301.\n");
-#endif
-	} else if (strcmp(argv[0], "drv8301_set_oc_adj") == 0) {
-#ifdef HW_HAS_DRV8301
-		if (argc == 2) {
-			int val = -1;
-			sscanf(argv[1], "%d", &val);
-
-			if (val >= 0 && val < 32) {
-				drv8301_set_oc_adj(val);
-				unsigned int res = drv8301_read_reg(2);
-				char bl[9];
-				char bh[9];
-
-				utils_byte_to_binary((res >> 8) & 0xFF, bh);
-				utils_byte_to_binary(res & 0xFF, bl);
-
-				commands_printf("New reg value 0x%02x: %s %s (0x%04x)\n", 2, bh, bl, res);
-			} else {
-				commands_printf("Invalid argument(s).\n");
-			}
-		} else {
-			commands_printf("This command requires one argument.\n");
-		}
-#else
-		commands_printf("This hardware does not have a DRV8301.\n");
-#endif
-	} else if (strcmp(argv[0], "drv8301_print_faults") == 0) {
-#ifdef HW_HAS_DRV8301
-		commands_printf(drv8301_faults_to_string(drv8301_read_faults()));
-#else
-		commands_printf("This hardware does not have a DRV8301.\n");
-#endif
-	} else if (strcmp(argv[0], "drv8301_reset_faults") == 0) {
-#ifdef HW_HAS_DRV8301
-		drv8301_reset_faults();
-#else
-		commands_printf("This hardware does not have a DRV8301.\n");
-#endif
-	} else if (strcmp(argv[0], "drv8305_read_reg") == 0) {
-#ifdef HW_HAS_DRV8305
-		if (argc == 2) {
-			int reg = -1;
-			sscanf(argv[1], "%d", &reg);
-
-			if (reg >= 0) {
-				unsigned int res = drv8305_read_reg(reg);
-				char bl[9];
-				char bh[9];
-
-				utils_byte_to_binary((res >> 8) & 0xFF, bh);
-				utils_byte_to_binary(res & 0xFF, bl);
-
-				commands_printf("Reg 0x%02x: %s %s (0x%04x)\n", reg, bh, bl, res);
-			} else {
-				commands_printf("Invalid argument(s).\n");
-			}
-		} else {
-			commands_printf("This command requires one argument.\n");
-		}
-#else
-		commands_printf("This hardware does not have a DRV8305.\n");
-#endif
-	} else if (strcmp(argv[0], "drv8305_write_reg") == 0) {
-#ifdef HW_HAS_DRV8305
-		if (argc == 3) {
-			int reg = -1;
-			int val = -1;
-			sscanf(argv[1], "%d", &reg);
-			sscanf(argv[2], "%x", &val);
-
-			if (reg >= 0 && val >= 0) {
-				drv8305_write_reg(reg, val);
-				unsigned int res = drv8305_read_reg(reg);
-				char bl[9];
-				char bh[9];
-
-				utils_byte_to_binary((res >> 8) & 0xFF, bh);
-				utils_byte_to_binary(res & 0xFF, bl);
-
-				commands_printf("New reg value 0x%02x: %s %s (0x%04x)\n", reg, bh, bl, res);
-			} else {
-				commands_printf("Invalid argument(s).\n");
-			}
-		} else {
-			commands_printf("This command requires two arguments.\n");
-		}
-#else
-		commands_printf("This hardware does not have a DRV8305.\n");
-#endif
 	} else if (strcmp(argv[0], "foc_openloop") == 0) {
 		if (argc == 3) {
 			float current = -1.0;

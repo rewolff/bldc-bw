@@ -62,8 +62,35 @@
 #include "hw_tp.h"
 #elif defined HW_VERSION_75_300
 #include "hw_75_300.h"
+#elif defined HW_VERSION_MINI4
+#include "hw_mini4.h"
+#elif defined HW_VERSION_DAS_MINI
+#include "hw_das_mini.h"
 #else
 #error "No hardware version defined"
+#endif
+
+// Default empty macros in case there is no hardware support
+#ifndef ENABLE_GATE
+#define ENABLE_GATE()
+#endif
+#ifndef DISABLE_GATE
+#define DISABLE_GATE()
+#endif
+#ifndef DCCAL_ON
+#define DCCAL_ON()
+#endif
+#ifndef DCCAL_OFF
+#define DCCAL_OFF()
+#endif
+#ifndef IS_DRV_FAULT
+#define IS_DRV_FAULT()			0
+#endif
+#ifndef AUX_ON
+#define AUX_ON()
+#endif
+#ifndef AUX_OFF
+#define AUX_OFF()
 #endif
 
 // Functions
