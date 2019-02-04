@@ -400,9 +400,10 @@ void terminal_process_string(char *str) {
 		  chThdSleepMilliseconds (300);
 		}
 		commands_printf ("Done\n");
+#if 0
 	} else if (strcmp(argv[0], "nerrs") == 0) {
 		commands_printf ("pkts= %d, nserrs= %d, nderrs=%d\n", npkts, nserr, nderr);
-
+#endif
 	} else if (strcmp(argv[0], "rew_res") == 0) {
 		if (argc == 2) {
 			float duty = -1.0;
@@ -515,7 +516,7 @@ void terminal_process_string(char *str) {
 				ADC_Value[0], ADC_Value[1], ADC_Value[2], ADC_Value[3], 
 				ADC_Value[4], ADC_Value[5], ADC_Value[6], ADC_Value[7], 
 				ADC_Value[8], ADC_Value[9], ADC_Value[10], ADC_Value[11], 
-				ADC_Value[12], ADC_Value[13], ADC_Value[14], ADC_Value[15]); 
+				ADC_Value[12], ADC_Value[13], ADC_Value[14] ); 
 			
                   chThdSleepMilliseconds (1000);
                 }

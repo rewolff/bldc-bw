@@ -70,6 +70,7 @@
 #define ADC_IND_TEMP_MOS6			9
 #define ADC_IND_TEMP_PCB			11
 #define ADC_IND_TEMP_MOTOR			11
+#define ADC_IND_TEMP_MOS 			11
 #define ADC_IND_VREFINT				6
 
 // ADC macros and settings
@@ -101,7 +102,7 @@
 //#define NTC_RES(adc_val)	(10000.0 / ((4096.0 / (float)adc_val) - 1.0))
 #define NTC_RES(adc_val)	((4095.0 * 10000.0) / adc_val - 10000.0)
 //#define NTC_TEMP(adc_ind)	 ((float)(ADC_Value[11])/10.0)
-#define NTC_TEMP(adc_ind)	 (((float)(ADC_Value[11]) * 3.3/4096.0 - 0.5)/0.010)
+#define NTC_TEMP(adc_ind)	 (((float)(ADC_Value[adc_ind]) * 3.3/4096.0 - 0.5)/0.010)
 
 // Double samples in beginning and end for positive current measurement.
 // Useful when the shunt sense traces have noise that causes offset.

@@ -235,7 +235,7 @@ void app_lcd_start(void)
 {
   stop_now = false;
   // Start the lcd thread
-#if 0
+#if 1
   chThdCreateStatic(lcd_thread_wa, sizeof(lcd_thread_wa),
 		    NORMALPRIO, lcd_thread, NULL);
 #endif
@@ -324,7 +324,7 @@ static THD_FUNCTION(lcd_thread, arg)
 
     if ((t==0) || (t == 50)) {
 #define INTTIME (50.0 )
-      sprintf (&display[0][0], "%.1fkm/h", (double) (rpmtot/500.0/INTTIME));
+      sprintf (&display[0][0], "%.1fkm/h", (double) (rpmtot/83.3/INTTIME));
 
       sprintf (&display[0][12], "duty:%.0f", (double) (dutytot*100.0/INTTIME));
       sprintf (&display[1][0], "vin: %.2f ", (double) (vintot / INTTIME));

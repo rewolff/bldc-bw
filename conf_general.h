@@ -99,8 +99,9 @@
 /*
  * Set APP_CUSTOM_TO_USE to the name of the main C file of the custom application.
  */
-#define APP_CUSTOM_TO_USE			"app_auto.c"
-#define APP_HAS_RELAY 1
+#define APP_CUSTOM_TO_USE			"app_lcd.c"
+#define CUSTOM_USES_APPADC
+//#define APP_HAS_RELAY 1
 
 /*
  * Enable CAN-bus
